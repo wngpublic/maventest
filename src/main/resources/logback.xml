@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false" scan="true" scanPeriod="60 seconds" packagingData="false">
+    <appender name="ASYNC1" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>./log.log</File>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%m%n%ex</pattern>
+            <immediateFlush>false</immediateFlush>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <maxIndex>10</maxIndex>
+            <FileNamePattern>./log.%i.log</FileNamePattern>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <MaxFileSize>1MB</MaxFileSize>
+        </triggeringPolicy>
+    </appender>
+    <appender name="ASYNC2" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <File>./logdates.log</File>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%m%n%ex</pattern>
+            <immediateFlush>false</immediateFlush>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>./logdates.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <MaxFileSize>1MB</MaxFileSize>
+            <MaxHistory>20</MaxHistory>
+            <TotalSizeCap>100MB</TotalSizeCap>
+        </rollingPolicy>
+    </appender>
+    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ASYNC1" />
+        <queueSize>1000</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+    <appender name="ASYNCTIME" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ASYNC2" />
+        <queueSize>1000</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="ASYNC" />
+        <appender-ref ref="ASYNCTIME" />
+    </root>
+    <logger name="LOGGERNAME" level="INFO" additivity="false">
+        <appender-ref ref="ASYNC" />
+    </logger>
+    <logger name="LOGGERDATE" level="INFO" additivity="false">
+        <appender-ref ref="ASYNCTIME" />
+    </logger>
+    <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+</configuration>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="DEBUG">
+    <Appenders>
+        <RollingFile name="APP_LOG" fileName="logs/application.log" filePattern="logs/archive/application.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="ALL_LOG" fileName="logs/all.log" filePattern="logs/archive/all.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="LOG_TYPE_1" fileName="logs/log_type1.log" filePattern="logs/archive/log_type1.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="LOG_TYPE_2" fileName="logs/log_type2.log" filePattern="logs/archive/log_type2.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="LOG_TYPE_3" fileName="logs/log_type3.log" filePattern="logs/archive/log_type3.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="LOG_TYPE_4" fileName="logs/log_type4.log" filePattern="logs/archive/log_type4.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+        <RollingFile name="LOG_TYPE_5" fileName="logs/log_type5.log" filePattern="logs/archive/log_type5.log.%d{MM- dd-yyyy}-%i.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies><SizeBasedTriggeringPolicy size="1 MB" /></Policies>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="APP_LOG"/>
+            <!--<AppenderRef ref="ALL_LOG"/>-->
+        </Root>
+        <Logger name="loggerapp" level="debug" additivity="true">
+            <AppenderRef ref="APP_LOG" level="debug"/>
+        </Logger>
+        <Logger name="loggertype1" level="debug" additivity="true">
+            <AppenderRef ref="LOG_TYPE_1" level="debug"/>
+        </Logger>
+        <Logger name="loggertype2" level="warn" additivity="true">
+            <AppenderRef ref="LOG_TYPE_2" level="debug"/>
+        </Logger>
+        <!-- different level consistencies -->
+        <Logger name="loggertype3" level="warn" additivity="true">
+            <AppenderRef ref="LOG_TYPE_3" level="debug"/>
+        </Logger>
+        <AsyncLogger name="loggertype4" level="debug" additivity="true">
+            <AppenderRef ref="LOG_TYPE_4" level="warn"/>
+        </AsyncLogger>
+        <AsyncLogger name="loggertype5" level="debug" additivity="true">
+            <AppenderRef ref="LOG_TYPE_5"/>
+        </AsyncLogger>
+        <Logger name="org.wayne.io.logging.package1.subpackage2.LoggerCounterType3" level="warn" additivity="false"/>
+        <!--<Logger name="loggertype3" level="warn" additivity="false"/>-->
+    </Loggers>
+</Configuration>

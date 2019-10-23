@@ -1,0 +1,7 @@
+.DS_Store
+.idea/
+debug.log
+dependency-reduced-pom.xml
+logs/
+src/main/java/org/wayne/external/.DS_Store
+target/
