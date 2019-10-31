@@ -66,7 +66,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import junit.framework.TestCase;
-import sun.misc.CRC16;
+//import sun.misc.CRC16;
 
 public class ExternalTest extends TestCase {
     Random random = new Random();
@@ -1452,6 +1452,7 @@ public class ExternalTest extends TestCase {
             }
             bb4.clear();
             bb8.clear();
+            /*
             sb = new StringBuilder();
             {
                 CRC16 crc16 = new CRC16();
@@ -1478,6 +1479,7 @@ public class ExternalTest extends TestCase {
                 }
                 p("%03d bytes %s\n", bytes.length, sb.toString());
             }
+            */
             sb = new StringBuilder();
             try {
                 MessageDigest md = MessageDigest.getInstance("MD5");
@@ -2999,4 +3001,36 @@ class CacheNode {
     String v;
     AtomicInteger w = new AtomicInteger(0);
     //public CacheNode(String k, String v) { this.k = k; this.v = v; w = new AtomicInteger(0); }
+}
+
+class MiscAlgos {
+    public List<String> longestCommonSubsequence(List<String> l1, List<String> l2) {
+        List<String> lcs = new ArrayList<>();
+        return lcs;
+    }
+    /*
+     * brute force DFS
+     */
+    void longestCommonSubsequenceV1(
+        int i1, int i2,
+        List<String> l1, List<String> l2,
+        LinkedList<String> lcs, List<String> debugTrace)
+    {
+        for(int i = i1, maxi = i1; i < l1.size(); i++) {
+            for(int j = i2, maxj = i2; j < l2.size(); j++) {
+                int cmp2 = l1.get(i).compareTo(l2.get(j));
+                if(cmp2 < 0) {
+
+                }
+            }
+        }
+    }
+    public List<String> longestCommonSubstring(List<String> l1, List<String> l2) {
+        List<String> lcs = new ArrayList<>();
+        return lcs;
+    }
+    public List<String> longestIncreasingSubsequence(List<String> l1) {
+        List<String> lis = new ArrayList<>();
+        return lis;
+    }
 }
