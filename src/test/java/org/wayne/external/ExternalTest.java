@@ -9,9 +9,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedOutputStream;
+import groovy.lang.GroovyClassLoader;
+import groovy.lang.GroovyObject;
 import lombok.Builder;
 import lombok.Data;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.net.MalformedURLException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -20,9 +25,19 @@ import java.util.*;
 import java.io.BufferedReader;
 import java.io.EOFException;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.http.HttpHeaders;
+import org.apache.http.StatusLine;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 import org.apache.commons.collections4.CollectionUtils;
@@ -54,8 +69,14 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
@@ -1183,6 +1204,21 @@ public class ExternalTest extends TestCase {
         map.put(key, false);
         return false;
     }
+    boolean isInterleavedWithAddError(int i, int j, int k, String s1, String s2, String s3, int ctrErr, Map<String,Boolean> map, AtomicInteger ctr, boolean useDP) {
+        ctr.incrementAndGet();
+        if(i == s1.length() && j == s2.length() && k == s3.length()) return ctrErr <= 1;
+        if(k == s3.length()) return false;
+        String key = String.format("%d,%d,%d",i,j,k);
+        if(map.containsKey(key)) return map.get(key);
+        if(i < s1.length() && s1.charAt(i) == s3.charAt(k))
+            if(isInterleavedWithAddError(i+1,j,k+1,s1,s2,s3,ctrErr,map,ctr,useDP)) return true;
+        if(j < s2.length() && s2.charAt(j) == s3.charAt(k))
+            if(isInterleavedWithAddError(i,j+1,k+1,s1,s2,s3,ctrErr,map,ctr,useDP)) return true;
+        if(isInterleavedWithAddError(i,j,k+1,s1,s2,s3,ctrErr+1,map,ctr,useDP)) return true;
+        if(useDP)
+            map.put(key,false);
+        return false;
+    }
 
     @Test
     public void testInterleavedStringsError() {
@@ -1190,19 +1226,43 @@ public class ExternalTest extends TestCase {
         boolean res;
         AtomicInteger ctr = new AtomicInteger(0);
         String charset = "abc";
-        int numcases = 100_000;
-        for(int i = 0; i < numcases; i++) {
-            s1 = getRandomString(charset, 5);
-            s2 = getRandomString(charset, 5);
-            String mod1 = s1;
-            String mod2 = s2;
+        /*
+         * diff count:   2 for DP/NoDP: s1:cbc s2:bbcb s3:cbbcbbc
+         * diff count:   2 for DP/NoDP: s1:acb s2:aaca s3:aacaacb
+         * diff count:   4 for DP/NoDP: s1:cacb s2:ccab s3:ccacbacb
+         * diff count:   4 for DP/NoDP: s1:bcba s2:bbca s3:bbcbacba
+         *
+         * diff count:  29 for DP/NoDP: s1:bbb s2:bcc s3:bcbbbc
+         * diff count:  33 for DP/NoDP: s1:bbb s2:bab s3:babbbb
+         * diff count: 108 for DP/NoDP: s1:aaa s2:aac s3:aacaaba
+         * diff count:  63 for DP/NoDP: s1:aab s2:aba s3:abaaaab
+         */
+        for(int i = 0; i < 100000; i++) {
+            s1 = getRandomString(charset, 4);
+            s2 = getRandomString(charset, 4);
             s3 = getInterleavedString(s1,s2);
             s3 = modifyString(s3,charset,1);
+            if(r.nextBoolean()){
+            }
+            Map<String,Boolean> map = new HashMap<>();
             try {
-                res = isInterleavedWithErrors(mod1,mod2,s3,1,ctr);
+                //res = isInterleavedWithErrors(s1,s2,s3,1,ctr);
+                ctr.set(0);
+                res = isInterleavedWithAddError(0,0,0,s1,s2,s3,0,map,ctr,false);
                 assert res;
-            } catch (Exception e) {
-                p("error for case %d\ns1:%s\ns2:%s\n,s3:%s\n",i,mod1,mod2,s3);
+                int cnt_nodp = ctr.get();
+
+                ctr.set(0);
+                res = isInterleavedWithAddError(0,0,0,s1,s2,s3,0,map,ctr,true);
+                assert res;
+                int cnt_dp = ctr.get();
+
+                int diff = cnt_nodp - cnt_dp;
+                if(diff > 3) {
+                    p("diff count: %3d for DP/NoDP: s1:%s s2:%s s3:%s\n",diff,s1,s2,s3);
+                }
+            } catch(Exception e) {
+                e.printStackTrace();
             }
         }
     }
@@ -1887,6 +1947,257 @@ public class ExternalTest extends TestCase {
             e.printStackTrace();
         }
     }
+    @Test
+    public void testResourcePath() throws IOException {
+        String path = "src/test/resources/input_test_json.json";
+        JsonNode json = objectMapper.readTree(new File(path));
+        assert json != null;
+    }
+    @Test
+    public void testGroovyLoad() {
+        {
+            File file;
+            Class clazz;
+            GroovyObject groovyObject;
+            Object object;
+
+            boolean flag = false;
+            try (GroovyClassLoader groovyClassLoader = new GroovyClassLoader(this.getClass().getClassLoader())) {
+                file = new File("src/test/groovy/BasicTest.groovy");
+                clazz = groovyClassLoader.parseClass(file);
+                object = clazz.newInstance();
+                groovyObject = (GroovyObject)object;
+                groovyObject.invokeMethod("helloName", new Object [] {"you"});
+
+                file = new File("src/test/groovy/BasicTestDuplicate.groovy");
+                clazz = groovyClassLoader.parseClass(file);
+                object = clazz.newInstance();
+                groovyObject = (GroovyObject)object;
+                groovyObject.invokeMethod("helloName", new Object [] {"you"});
+
+                file = new File("src/test/groovy/BasicTestWithError.txt");
+                clazz = groovyClassLoader.parseClass(file);
+                object = clazz.newInstance();
+                groovyObject = (GroovyObject)object;
+                groovyObject.invokeMethod("helloName", new Object [] {"you"});
+
+            } catch (Exception e) {
+                flag = true;
+            }
+            assert flag;
+        }
+    }
+
+    @Test
+    public void testHttpClient4() {
+        CloseableHttpClient httpClient;
+        try {
+            RequestConfig requestConfig = RequestConfig
+                .custom()
+                .setConnectionRequestTimeout(1000)
+                .setConnectTimeout(1000)
+                .setSocketTimeout(1000).build();
+            httpClient = HttpClientBuilder
+                .create()
+                .setDefaultRequestConfig(requestConfig).build();
+
+            RequestConfig requestConfigPerRequest = RequestConfig
+                .custom()
+                .setConnectionRequestTimeout(2000)
+                .setConnectTimeout(2000)
+                .setSocketTimeout(2000).build();
+            HttpGet httpGet = new HttpGet("https:/finance.yahoo.com");
+            httpGet.setConfig(requestConfigPerRequest);
+            httpGet.addHeader(HttpHeaders.ACCEPT, "application/json");
+            CloseableHttpResponse httpResponse = httpClient.execute(httpGet);
+            StatusLine statusLine = httpResponse.getStatusLine();
+            int statusCode = statusLine.getStatusCode();
+            httpResponse.close();
+            httpClient.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+        }
+    }
+
+    @Test
+    public void testAsyncHttpClient4() {
+
+    }
+
+    @Test
+    public void testDownloadFile() {
+        {
+            try {
+                URL url = new URL("https://www.gutenberg.org/files/98/98-0.txt");
+                File file = new File("dickens.tale.of.two.cities.txt");
+                FileUtils.copyURLToFile(url, file);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @Test
+    public void testCreateTemporaryFile() {
+        File file = null;
+        try {
+            file = File.createTempFile("temporary_file.0",".txt");
+            String filePath = file.getAbsolutePath();
+            BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(file));
+            bufferedWriter.write("this is a sentence 1\n");
+            bufferedWriter.write("this is a sentence 2\n");
+            bufferedWriter.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        Path path = null;
+        try {
+            path = Files.createTempFile("temporary_file.1",".txt");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("this is a sentence 1\n");
+            stringBuilder.append("this is a sentence 2\n");
+            String message = stringBuilder.toString();
+            Files.write(path,message.getBytes());
+            path.toFile().deleteOnExit();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testCompleteableFuture1() {
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+        Supplier<String> supplier = () -> { return getRandomString("abcdef",10); };
+        CompletableFuture<String> completableFuture1 = CompletableFuture.supplyAsync(supplier, executorService).exceptionally(e -> e.getMessage());
+        CompletableFuture<String> completableFuture2 = CompletableFuture.supplyAsync(supplier, executorService)
+            .handle((result,exception) -> { return exception != null ? exception.getMessage() : result; });
+        // thenApply(Function)
+        // thenAccept(Consumer)
+        try {
+            String response = completableFuture1.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        executorService.shutdown();
+        try {
+            executorService.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testStringSplit() {
+        List<String> l1, l2;
+        String s1;
+
+        s1 = "abc def, aba / bcb , xyz-123 , hello,qqq, yyy zzz ";
+        l1 = Arrays.asList(s1.split(","));
+        l2 = Arrays.asList(s1.split(",")).stream().map(s -> s.trim()).collect(Collectors.toList());
+        assert l1.size() == l2.size() && l1.size() == 6;
+
+        s1 = "\"abc def\",\" aba / bcb \",\" xyz-123 \",\" hello\",\"qqq\",\" yyy, zzz \"";
+        l1 = Arrays.asList(s1.split(","));
+        l2 = Arrays.asList(s1.split(",")).stream().map(s -> s.trim()).collect(Collectors.toList());
+        assert l1.size() == l2.size() && l1.size() == 7;
+
+        s1 = "abc def";
+        l1 = Arrays.asList(s1.split(","));
+        l2 = Arrays.asList(s1.split(",")).stream().map(s -> s.trim()).collect(Collectors.toList());
+        assert l1.size() == l2.size() && l1.size() == 1;
+
+        s1 = "abc def ";
+        l1 = Arrays.asList(s1.split(","));
+        l2 = Arrays.asList(s1.split(",")).stream().map(s -> s.trim()).collect(Collectors.toList());
+        assert l1.size() == l2.size() && l1.size() == 1;
+
+        s1 = " ";
+        l1 = Arrays.asList(s1.split(","));
+        l2 = Arrays.asList(s1.split(",")).stream().map(s -> s.trim()).collect(Collectors.toList());
+        assert l1.size() == l2.size() && l1.size() == 1;
+
+    }
+
+    @Test
+    public void testList() {
+        boolean b = false;
+        List<Integer> l1 = new ArrayList<>(Arrays.asList(1,2,3));
+        l1.add(4);
+        assert l1.size() == 4;
+        l1 = Arrays.asList(1,2,3);
+        try {
+            l1.add(4);
+        } catch(UnsupportedOperationException e) {
+            b = true;
+        }
+        assert b;
+    }
+
+    @Test
+    public void testJSONTryBlockPerformance() {
+        long tbeg, tend, tdif;
+        tbeg = System.nanoTime();
+        tend = System.nanoTime();
+        tdif = tend - tbeg;
+    }
+
+    @Test
+    public void testJSONObject() {
+        boolean b = false;
+        {
+            JSONObject jsonObject = new JSONObject();
+            JSONObject json1 = new JSONObject();
+            JSONObject json2 = new JSONObject();
+            JSONArray jsonArray = new JSONArray();
+            JSONObject o;
+
+            jsonObject.put("k1","v1");
+            jsonObject.put("k2",json1);
+            json1.put("k1.1","v1.1");
+            json1.put("k1.2","v1.2");
+
+            json2.put("k2.1","v2.1");
+
+            //json2.put("ambiguousPut",null); // cannot do this because ambiguous
+            b = false;
+            try {
+                json2.putOpt("k2.2",null); // null is ambiguous
+            } catch(JSONException e) {
+                b = true;
+            }
+            assert b == true;
+
+            jsonArray.put(jsonObject);
+            jsonArray.put(json2);
+
+            assert json1.has("k1.1");
+            assert !json1.has("k1.x");
+            assert jsonObject.has("k2");
+            assert !jsonObject.has("kx");
+
+            assert jsonObject.getString("k1").equals("v1");
+            try {
+                o = jsonObject.getJSONObject("abc");
+            } catch(JSONException e) {
+                b = true;
+            }
+            assert b == true;
+            String s = json1.getString("k1.2");
+            assert "v1.2".equals(s);
+            try {
+                b = false;
+                s = jsonObject.getJSONObject("k3").getString("k1.2");
+            } catch(JSONException e) {
+                b = true;
+            }
+            assert b == true;
+            s = jsonObject.getJSONObject("k2").getString("k1.2");
+            assert "v1.2".equals(s);
+        }
+    }
+
 }
 
 class RBNode<K extends Comparable, V> extends BBTNode {

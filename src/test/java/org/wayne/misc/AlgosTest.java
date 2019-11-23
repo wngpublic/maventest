@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import lombok.Builder;
 import lombok.Data;
@@ -24,6 +25,7 @@ public class AlgosTest extends TestCase {
     Utils u = new Utils();
     Random r = new Random();
     TestUtils testUtils = new TestUtils();
+    AlgosMisc algosMisc = new AlgosMisc();
     static void p(String f, Object ...o) {
         System.out.printf(f, o);
     }
@@ -3377,6 +3379,229 @@ public class AlgosTest extends TestCase {
             Pair<Integer,Integer> pair = t.getMinSubsetOrdered(minList, sequence);
             assert pair != null && pair.v1 == 14 && pair.v2 == 16;
         }
+    }
+    @Test
+    public void testDictToJson() {
+        {
+            // {"m1":{"m1.m1":{"m1.m1.s2":"v1.1.2","m1.m1.s1":"v1.1.1"},"m1.s1":"v1.1"},"s1":"v1"}
+            Map<String,Object> map = new HashMap<>();
+            Map<String,Object> m;
+            map.put("s1","v1");
+            map.put("m1",new HashMap<>());
+            m = (Map)map.get("m1");
+            m.put("m1.s1","v1.1");
+            m.put("m1.m1",new HashMap<>());
+            m = (Map)map.get("m1");
+            m = (Map)m.get("m1.m1");
+            m.put("m1.m1.s1","v1.1.1");
+            m.put("m1.m1.s2","v1.1.2");
+            String result = algosMisc.dictToJsonStringKVOnly(map);
+            p("%s\n",result);
+        }
+        {
+            // {"m1":{"m1.l1":["m1.l1.s1","m1.l1.s2"],"m1.m1":{"m1.m1.s2":"v1.1.2","m1.m1.s1":"v1.1.1"},"m1.s1":"v1.1"},"s1":"v1"}
+            /*
+             * {
+             *   "m1": {
+             *     "m1.l1": [
+             *       "m1.l1.s1",
+             *       "m1.l1.s2"
+             *     ],
+             *     "m1.m1": {
+             *       "m1.m1.s2": "v1.1.2",
+             *       "m1.m1.s1": "v1.1.1"
+             *     },
+             *     "m1.s1": "v1.1"
+             *   },
+             *   "s1": "v1"
+             * }
+             */
+            Map<String,Object> map = new HashMap<>();
+            Map<String,Object> m;
+            map.put("s1","v1");
+            map.put("m1",new HashMap<>());
+            m = (Map)map.get("m1");
+            m.put("m1.s1","v1.1");
+            m.put("m1.m1",new HashMap<>());
+            m.put("m1.l1",Arrays.asList("m1.l1.s1","m1.l1.s2","m1.l1.s3"));
+            m = (Map)map.get("m1");
+            m = (Map)m.get("m1.m1");
+            m.put("m1.m1.s1","v1.1.1");
+            m.put("m1.m1.s2","v1.1.2");
+            String result = algosMisc.dictToJsonString(map);
+            p("%s\n",result);
+        }
+    }
+    @Test
+    public void testBinarySearch2DArray() {
+        {
+            //List<String> list = Stream.of(1,2,3,4,5,6,7,8,9,10).map(x -> String.format("%s", x)).collect(Collectors.toList()); // 10 < 9 for string
+            List<String> list = Stream.of(1,2,3,4,5,6,7,8).map(x -> String.format("%s", x)).collect(Collectors.toList());
+            int result;
+            for(int i = 0; i <= 9; i++) {
+                result = algosMisc.binarySearch(list, String.format("%d",i));
+                if(i == 0) {
+                    assert result == -1;
+                } else if(i >= 9) {
+                    assert result == -1;
+                } else {
+                    assert result == (i-1);
+                }
+            }
+        }
+        {
+            List<String> list = Stream.of(1,2,3,4,5,6,7,8,9).map(x -> String.format("%s", x)).collect(Collectors.toList());
+            int result;
+            for(int i = 0; i <= 10; i++) {
+                result = algosMisc.binarySearch(list, String.format("%d",i));
+                if(i == 0) {
+                    assert result == -1;
+                } else if(i >= 10) {
+                    assert result == -1;
+                } else {
+                    assert result == (i-1);
+                }
+            }
+        }
+        {
+            List<List<String>> ll = new ArrayList<>();
+            for(int i = 0; i < 10; i++) {
+                List<String> l = new ArrayList<>();
+                ll.add(l);
+                for(int j = 0; j < 10; j++) {
+                    l.add(String.format("(%d,%d)",i,j));
+                }
+            }
+            for(int i = 0; i < 10; i++) {
+                for(int j = 0; j < 10; j++) {
+                    Pair<Integer,Integer> pair = algosMisc.binarySearch2DArray(ll, String.format("(%d,%d)",i,j));
+                    assert pair.v1 == i && pair.v2 == j;
+                }
+            }
+        }
+    }
+    @Test
+    public void testStringCompare() {
+        /*
+         * 5.compareto(6) == -1
+         * 5.compareto(5) == 0
+         * 5.compareto(4) == 1
+         */
+        String s1 = "v1";
+        String s2 = "v2";
+        String s3 = "v1";
+        int result;
+        result = s1.compareTo(s2);  // v1 < v2 == -1
+        assert result == -1;
+        result = s2.compareTo(s1);  // v2 < v1 == 1
+        assert result == 1;
+        result = s3.compareTo(s1);  // v1 < v1 == 0
+        assert result == 0;
+    }
+}
+
+class AlgosMisc {
+    /*
+     * in 2d array, all values are sorted. return the x,y index.
+     */
+    Pair<Integer,Integer> binarySearch2DArray(List<List<String>> llist, String k) {
+        int max = llist.size() - 1;
+        return binarySearch2DArray(llist, k, 0, max);
+    }
+    private Pair<Integer,Integer> binarySearch2DArray(List<List<String>> llist, String k, int l, int r) {
+        // 5.compareto(6) == -1   5.compareto(5) == 0    5.compareto(4) == 1
+        if(r < l) return null;
+        int m = (l + r + 1)/2;
+        List<String> list  = llist.get(m);
+        int cmp = k.compareTo(list.get(0));
+        if(cmp < 0){
+            return binarySearch2DArray(llist, k, l, m-1);
+        }
+        List<String> list2 = ((m+1) < llist.size()) ? llist.get(m+1) : null;
+        int cmp2 = list2 == null ? -1 : k.compareTo(list2.get(0));
+        if(cmp2 < 0) {
+            int y = binarySearch(list, k, 0, list.size()-1);
+            return (y < 0) ? null : new Pair<Integer,Integer>(m,y);
+        }
+        return binarySearch2DArray(llist, k, m+1, r);
+    }
+    int binarySearch(List<String> list, String k) {
+        int max = list.size() - 1;
+        return binarySearch(list, k, 0, max);
+    }
+    private int binarySearch(List<String> list, String k, int l, int r) {
+        // 5.compareto(6) == -1   5.compareto(5) == 0    5.compareto(4) == 1
+        if(r < l) return -1;
+        int m = (l + r + 1)/2;
+        int cmp = k.compareTo(list.get(m));
+        if(cmp == 0)        return m;
+        else if(cmp < 0)    return binarySearch(list, k, l, m-1);
+        else                return binarySearch(list, k, m+1, r);
+    }
+    String dictToJsonStringKVOnly(Map<String,Object> map) {
+        StringBuilder sb = new StringBuilder();
+        dictToJsonStringKVOnly(map, sb);
+        return sb.toString();
+    }
+    void dictToJsonStringKVOnly(Map<String,Object> map, StringBuilder sb) {
+        if(map == null || map.isEmpty()) return;
+        sb.append("{");
+        int ctr = 0;
+        for(Map.Entry<String,Object> e: map.entrySet()) {
+            if(ctr != 0) sb.append(",");
+            String k = e.getKey();
+            Object v = e.getValue();
+            sb.append(String.format("\"%s\":", k));
+            if(v instanceof Map) {
+                dictToJsonStringKVOnly((Map<String,Object>)v, sb);
+            } else {
+                sb.append(String.format("\"%s\"", (String)v));
+            }
+            ctr++;
+        }
+        sb.append("}");
+    }
+    String dictToJsonString(Map<String,Object> map) {
+        StringBuilder sb = new StringBuilder();
+        dictToJsonString(map, sb);
+        return sb.toString();
+    }
+    private void dictToJsonString(Map<String,Object> map, StringBuilder sb) {
+        if(map == null || map.isEmpty()) return;
+        sb.append("{");
+        int ctr = 0;
+        for(Map.Entry<String,Object> e: map.entrySet()) {
+            if(ctr != 0) sb.append(",");
+            String k = e.getKey();
+            Object v = e.getValue();
+            sb.append(String.format("\"%s\":", k));
+            if(v instanceof Map) {
+                dictToJsonString((Map)v, sb);
+            } else if(v instanceof List) {
+                dictToJsonStringProcessList((List)v, sb);
+            } else {
+                sb.append(String.format("\"%s\"", (String)v));
+            }
+            ctr++;
+        }
+        sb.append("}");
+    }
+    private void dictToJsonStringProcessList(List<Object> l, StringBuilder sb) {
+        int ctr = 0;
+        sb.append("[");
+        for(Object o: l) {
+            if(ctr != 0) sb.append(",");
+            if(o instanceof String) {
+                sb.append(String.format("\"%s\"", (String)o));
+            } else if(o instanceof Map) {
+                Map<String,Object> m = (Map)o;
+                dictToJsonString(m, sb);
+            } else if(o instanceof List) {
+                dictToJsonStringProcessList((List)o, sb);
+            }
+            ctr++;
+        }
+        sb.append("]");
     }
 }
 
