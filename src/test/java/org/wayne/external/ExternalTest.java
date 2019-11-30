@@ -1291,6 +1291,43 @@ public class ExternalTest extends TestCase {
         Pattern pattern = Pattern.compile(regex);
         String v = "";
         boolean b = pattern.matcher(v).matches();
+        assert b;
+        List<String> regex_patterns =
+            Arrays.asList("^base\\.[\\d]{2,3}$","^base\\.\\d{2,3}$");
+        for(String regex_pattern: regex_patterns) {
+            pattern = Pattern.compile(regex_pattern);
+            b = pattern.matcher("base.123").matches();
+            assert b;
+            b = pattern.matcher("base123").matches();
+            assert !b;
+            b = pattern.matcher("bae.123").matches();
+            assert !b;
+            b = pattern.matcher("base.123d").matches();
+            assert !b;
+            b = pattern.matcher("base.1").matches();
+            assert !b;
+            b = pattern.matcher("base.12").matches();
+            assert b;
+            b = pattern.matcher("base.1234").matches();
+            assert !b;
+        }
+        {
+            pattern = Pattern.compile("^base\\.\\d+$");
+            b = pattern.matcher("base.123").matches();
+            assert b;
+            b = pattern.matcher("base123").matches();
+            assert !b;
+            b = pattern.matcher("bae.123").matches();
+            assert !b;
+            b = pattern.matcher("base.123d").matches();
+            assert !b;
+            b = pattern.matcher("base.1").matches();
+            assert b;
+            b = pattern.matcher("base.12").matches();
+            assert b;
+            b = pattern.matcher("base.1234").matches();
+            assert b;
+        }
     }
     @Test
     public void testJson() throws IOException {

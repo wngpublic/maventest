@@ -1974,6 +1974,8 @@ public class Java8Test extends TestCase {
         for(int i = 0; i < range.size(); i++) {
             assert i == range.get(i);
         }
+        long numeven = range.parallelStream().filter(i -> i % 2 == 0).count();
+        assert numeven == 5;
         range = IntStream.rangeClosed(0,10).boxed().collect(Collectors.toList());
         assert range.size() == 11;
         for(int i = 0; i < range.size(); i++) {
