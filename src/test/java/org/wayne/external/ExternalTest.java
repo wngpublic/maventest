@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedOutputStream;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyObject;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
@@ -24,6 +25,9 @@ import java.util.*;
 
 import java.io.BufferedReader;
 import java.io.EOFException;
+
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -1447,7 +1451,31 @@ public class ExternalTest extends TestCase {
             n = objectMapper.readTree(sjson);
             traverseJsonNodeCount(n, ctr);
             assert ctr.get() == 12; // root, k1, k2, k3, k3.1, k4, k4[0], k4[1], k4.1.1, k4.1.2, k4.2.1, k4.2.2
+
+            // convert JSONObject JSONNode String
+            sjson = "{\"k1\":\"v1\",\"k2\":\"v2\",\"k3\":{\"k3.1\":\"v3.1\"},"+
+                "\"k4\":[{\"k4.1.1\":\"v4.1.1\",\"k4.1.2\":\"v4.1.2\"},{\"k4.2.1\":\"v4.2.1\",\"k4.2.2\":\"v4.2.2\"}]}";
+            // sjson = {"k1":"v1","k2":"v2","k3":{"k3.1":"v3.1"},"k4":[{"k4.1.1":"v4.1.1","k4.1.2":"v4.1.2"},{"k4.2.1":"v4.2.1","k4.2.2":"v4.2.2"}]}
+            jsonNode = objectMapper.readTree(sjson);
+            jsonObject = new JSONObject(sjson);
+            String v1 = jsonObject.toString();
+            String v2 = jsonNode.asText();      // wrong way
+            String v3 = objectMapper.writeValueAsString(jsonNode); // right way
+
+            assert sjson.equals(v1);
+            assert !sjson.equals(v2);
+            assert sjson.equals(v3);
+            // v3 =    {"k1":"v1","k2":"v2","k3":{"k3.1":"v3.1"},"k4":[{"k4.1.1":"v4.1.1","k4.1.2":"v4.1.2"},{"k4.2.1":"v4.2.1","k4.2.2":"v4.2.2"}]}
+
+            JSONArray jsonArray10 = jsonObject.optJSONArray("k4");
+            JsonNode jsonNode10   = jsonNode.get("k4");
+
+            v1 = jsonArray10.toString();
+            v2 = objectMapper.writeValueAsString(jsonNode10);
+            assert v1.equals(v2);
+            // v2 =    [{"k4.1.1":"v4.1.1","k4.1.2":"v4.1.2"},{"k4.2.1":"v4.2.1","k4.2.2":"v4.2.2"}]
         }
+        p("pass testJson\n");
     }
     void traverseJsonNodeCount(JsonNode n, AtomicInteger ctr) {
         if(n == null) return;
@@ -2181,33 +2209,51 @@ public class ExternalTest extends TestCase {
     }
 
     @Test
-    public void testJSONObject() {
+    public void testJSONObject() throws IOException {
         boolean b = false;
         {
             JSONObject jsonObject = new JSONObject();
             JSONObject json1 = new JSONObject();
             JSONObject json2 = new JSONObject();
             JSONArray jsonArray = new JSONArray();
-            JSONObject o;
+            Object o;
+
+
+            assert jsonObject.length() == 0;
+            assert !jsonObject.keys().hasNext();
+            assert !jsonObject.has("abc");
 
             jsonObject.put("k1","v1");
             jsonObject.put("k2",json1);
             json1.put("k1.1","v1.1");
             json1.put("k1.2","v1.2");
 
+            assert json1.length() == 2;
+
             json2.put("k2.1","v2.1");
 
             //json2.put("ambiguousPut",null); // cannot do this because ambiguous
-            b = false;
-            try {
-                json2.putOpt("k2.2",null); // null is ambiguous
-            } catch(JSONException e) {
-                b = true;
-            }
-            assert b == true;
+            json2.putOpt("k2.2",null); // null is ambiguous
+            assert !json2.has("k2.2");
+            assert json2.isNull("k2.2");
+
+            json2.putOpt("k2.2","v2.2"); // null is ambiguous
+            assert json2.has("k2.2");
+            assert !json2.isNull("k2.2");
 
             jsonArray.put(jsonObject);
-            jsonArray.put(json2);
+            jsonArray.put(json1);
+            json2.put("karray",jsonArray);
+
+            jsonArray = json2.optJSONArray("empty");
+            assert jsonArray == null;
+            o = json2.opt("empty");
+            assert o == null;
+            jsonArray = json2.optJSONArray("karray");
+            assert jsonArray != null;
+            assert jsonArray.length() == 2;
+
+
 
             assert json1.has("k1.1");
             assert !json1.has("k1.x");
@@ -2232,6 +2278,130 @@ public class ExternalTest extends TestCase {
             assert b == true;
             s = jsonObject.getJSONObject("k2").getString("k1.2");
             assert "v1.2".equals(s);
+        }
+        {
+            testJson();
+        }
+        p("pass testJSONObject\n");
+    }
+    @Test
+    public void testLombok() {
+        {
+            LombokClassA  lca = null;
+            LombokClassB  lcb = null;
+            LombokClassC  lcc = null;
+            LombokClassD  lcd = null;
+            LombokClassDA lcda = null;
+            LombokClassDB lcdb = null;
+            LombokClassE  lce = null;
+            LombokClassEA lcea = null;
+            LombokClassF  lcf = null;
+            LombokClassFA lcfa = null;
+            LombokClassG  lcg = null;
+            LombokClassGA lcga = null;
+
+            lca = LombokClassA.builder().build();
+            lcc = LombokClassC.builder().build();
+
+            // this works for extends! have builderMethodName
+            lcd = LombokClassD.builder().build();
+            lcda = LombokClassDA.builderLCDA().s("vs").build();
+            lcdb = LombokClassDB.builderLCDB().s("vs").s2("vs2").lcc(lcc).build();
+            assert "vs".equals(lcda.getS());
+            assert lcc.equals(lcdb.getLcc());
+
+            //lce = LombokClassE.builder().build(); // this does not work!
+            //lcea = LombokClassEA.builder().build();
+
+            // lcf cannot have @Builder if subclass @Builder doesn't use builderMethodName
+            //lcf = LombokClassF.builder().build();
+            lcfa = LombokClassFA.builder().build();
+
+            // LombokClassG has only @Data = {@Getter,@Setter,@ToString,@EqualsHashCode,@RequiredArgsConstructor}
+            lcg = new LombokClassG();
+            lcg.setLcc(lcc);
+
+            lcga = LombokClassGA.builder().build();
+            lcga = LombokClassGA.builder().s("vs").build(); // but cannot recognize i or lcc! but still can use getter,setter
+            //lcga = LombokClassGA.builder().s("vs").lcc(lcc).build(); // but cannot recognize i or lcc!
+            lcga.setLcc(lcc);
+            assert lcc.equals(lcga.getLcc());
+            assert "vs".equals(lcda.getS());
+
+            /*
+             * to use builder AND new class(), you need to add
+             * @AllArgsConstructor and @NoArgsConstructor
+             *
+             * adding only @NoArgsConstructor will result in builder not working!
+             *
+             * alternatively, dont use builder, then dont need @AllArgsConstructor and @NoArgsConstructor
+             */
+            LombokClassH lch;
+            lch = new LombokClassH(); // need @NoArgsConstructor AND @AllArgsConstructor
+            assert lch != null;
+            lch = LombokClassH.builder().s("hello").build();
+            assert lch != null;
+            assert "hello".equals(lch.getS());
+            lch = new LombokClassH("hello","hello2",10);
+            assert "hello".equals(lch.getS());
+            assert "hello2".equals(lch.getS2());
+
+            lch = new LombokClassH("hello2","hello1",11);
+            assert "hello2".equals(lch.getS());
+            assert "hello1".equals(lch.getS2());
+            assert 11 == lch.getI();
+
+            LombokClassI lci;
+            lci = new LombokClassI();
+            lci.setS("hello0");
+            lci.setS2("hello2");
+            lci.setI(10);
+            assert "hello0".equals(lci.getS());
+            assert "hello2".equals(lci.getS2());
+            assert 10 == lci.getI();
+        }
+        p("pass testLombok\n");
+    }
+    @Test
+    public void tieredSorts() {
+        /*
+         * 1 tier sorting
+         * 2 tier sorting
+         * 3 tier sorting
+         *
+         *
+         * o1 o2 o3 o4 o5
+         *
+         * use o1 o2 o3
+         *
+         * o1 o2 o3
+         *
+         * o2 depends on o3 complete, no dependency on o1
+         *
+         * o1,o3,o2
+         * o3,o1,o2
+         * o1 || o3, o2
+         *
+         * validate for circular dependency.
+         *
+         * o2 depends on o4 complete, but o4 is not in set
+         *
+         * o1 o2 o3
+         *
+         * o2 depends on o3 complete, o3 has lowest tier, o2 has high tier. who wins?
+         * this is direct conflict. must make choice. hard dependencies win.
+         *
+         *
+         *
+         */
+        {
+
+        }
+        {
+
+        }
+        {
+
         }
     }
 
@@ -3381,4 +3551,143 @@ class MiscAlgos {
         List<String> lis = new ArrayList<>();
         return lis;
     }
+}
+
+@Data
+@Builder
+class LombokClassA {
+    private String s;
+    private Integer i;
+}
+
+@Data
+@Builder
+class LombokClassB {
+    private LombokClassA lca;
+}
+
+@Data
+@Builder
+class LombokClassC {
+    private LombokClassB lcb;
+}
+
+/*
+ * need to remove the builder to make it extendable.. why?
+ */
+@Data
+@Builder
+@AllArgsConstructor
+class LombokClassD {
+    private String s;
+    protected Integer i;
+    private LombokClassC lcc;
+}
+
+/*
+ * Builder with builderMethodName specified. This allows builder for LombokClassD.
+ *
+ * If no builderMethodName, then parent cannot have builder.
+ *
+ * This pattern allows for LombokClassD.builder().build() and
+ * LombokClassDA.builderLCDA().build() but no
+ * LombokClassDA.builder().build(). which is fine..
+ */
+@Data
+class LombokClassDA extends LombokClassD {
+    private String s;
+    private String s2;
+    @Builder(builderMethodName = "builderLCDA")
+    public LombokClassDA(String s, String s2, Integer i, LombokClassC lcc) {
+        super(s, i, lcc);
+        this.s = s;
+        this.s2 = s2;
+    }
+}
+
+@Data
+class LombokClassDB extends LombokClassD {
+    private String s;
+    private String s2;
+    @Builder(builderMethodName = "builderLCDB")
+    public LombokClassDB(String s, String s2, Integer i, LombokClassC lcc) {
+        super(s, i, lcc);
+        this.s = s;
+        this.s2 = s2;
+    }
+}
+
+// @SuperBuilder doesn't seem to work. commenting out.
+@SuperBuilder
+class LombokClassE {
+    private String s;
+    protected Integer i;
+    private LombokClassC lcc;
+}
+
+@SuperBuilder
+class LombokClassEA extends LombokClassE {
+    private String s;
+    private String s2;
+}
+
+/*
+ * can't have builder if subclass is @Builder instead of @Builder(builderMethodName = ...)
+ */
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class LombokClassF {
+    private String s;
+    protected Integer i;
+    private LombokClassC lcc;
+}
+
+@Data
+class LombokClassFA extends LombokClassF {
+    private String s;
+    private String s2;
+    @Builder
+    public LombokClassFA(String s, String s2, Integer i, LombokClassC lcc) {
+        super(s, i, lcc);
+        this.s = s;
+        this.s2 = s2;
+    }
+}
+
+/*
+ * again, cant have @Builder if subclass doesn't have builderMethodName
+ * @NoArgsConstructor
+ */
+@Data
+class LombokClassG {
+    private String s;
+    protected Integer i;
+    private LombokClassC lcc;
+}
+
+@Data
+@Builder
+class LombokClassGA extends LombokClassG {
+    private String s;
+    private String s2;
+}
+
+// having both AllArgsConstructor and NoArgsConstructor allow builder and to use new X()
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+class LombokClassH {
+    private String s;
+    private String s2;
+    private Integer i;
+}
+
+// this allows to use new X() but no builder
+@Data
+class LombokClassI {
+    private String s;
+    private String s2;
+    private Integer i;
 }

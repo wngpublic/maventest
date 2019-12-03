@@ -1,6 +1,10 @@
 package org.wayne.java;
 
 import junit.framework.TestCase;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -25,7 +29,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.junit.platform.commons.util.StringUtils;
 import org.mockito.cglib.core.Local;
 
 import java.util.stream.Collectors;
@@ -34,9 +40,19 @@ import java.util.stream.Stream;
 import java.util.function.Supplier;
 
 public class Java8Test extends TestCase {
-    Logger logger = LogManager.getLogger(getClass().getEnclosingClass());
+    Logger logger = null;
+    boolean DEBUG = false;
 
-    //Logger logger = Logger.getLogger(getClass().getName());
+    public Java8Test() {
+        logger = (DEBUG) ? LogManager.getLogger(getClass().getEnclosingClass()) : null;
+    }
+
+    void log(String msg, Level level) {
+        if(logger == null) return;
+        logger.log(level, msg);
+        //logger.info("testHashMap ran");
+    }
+
     Random r = new Random();
     void p(String f, Object ...o) {
         System.out.printf(f, o);
@@ -1565,6 +1581,93 @@ public class Java8Test extends TestCase {
                 .ifPresent(o -> o5.set(o));
             assert o5.get() == 10;
         }
+        {
+            Local3A l3a = null;
+            Local3B l3b = null;
+            Local4A l4a = null;
+            LocalO5 l5 = null;
+
+            Local3ABLombok l3ab = Local3ABLombok.builder()
+                .l3a(l3a)
+                .l3b(l3b)
+                .build();
+            LocalO5 resL5 = Stream.of(l3ab.getL3a(),l3ab.getL3b())
+                .filter(o -> o != null)
+                .findFirst()
+                .map(l3 -> l3.getL4a())
+                .map(l4 -> l4.getL5())
+                .orElse(null);
+            assert resL5 == null;
+
+            l3a = new Local3A(null);
+            l3b = new Local3B(null);
+            l3ab = Local3ABLombok.builder()
+                .l3a(l3a)
+                .l3b(l3b)
+                .build();
+            resL5 = Stream.of(l3ab.getL3a(),l3ab.getL3b())
+                .filter(o -> o != null)
+                .findFirst()
+                .map(l3 -> l3.getL4a())
+                .map(l4 -> l4.getL5())
+                .orElse(null);
+            assert resL5 == null;
+
+            l4a = new Local4A(null, null);
+            l3a = new Local3A(l4a);
+            l3b = new Local3B(null);
+            l3ab = Local3ABLombok.builder()
+                .l3a(l3a)
+                .l3b(l3b)
+                .build();
+            resL5 = Stream.of(l3ab.getL3a(),l3ab.getL3b())
+                .filter(o -> o != null)
+                .findFirst()
+                .map(l3 -> l3.getL4a())
+                .map(l4 -> l4.getL5())
+                .orElse(null);
+            assert resL5 == null;
+
+            l5 = new LocalO5(null);
+            l4a = new Local4A(null, l5);
+            l3a = new Local3A(l4a);
+            l3b = new Local3B(null);
+            l3ab = Local3ABLombok.builder()
+                .l3a(l3a)
+                .l3b(l3b)
+                .build();
+            resL5 = Stream.of(l3ab.getL3a(),l3ab.getL3b())
+                .filter(o -> o != null)
+                .findFirst()
+                .map(l3 -> l3.getL4a())
+                .map(l4 -> l4.getL5())
+                .orElse(null);
+            assert resL5 != null;
+            assert resL5.get() == null;
+
+            l5 = new LocalO5(10);
+            l4a = new Local4A(null, l5);
+            l3a = new Local3A(l4a);
+            l3b = new Local3B(null);
+            l3ab = Local3ABLombok.builder()
+                .l3a(l3a)
+                .l3b(l3b)
+                .build();
+            resL5 = Stream.of(l3ab.getL3a(),l3ab.getL3b())
+                .filter(o -> o != null)
+                .findFirst()
+                .map(l3 -> l3.getL4a())
+                .map(l4 -> l4.getL5())
+                .orElse(null);
+            assert resL5 != null;
+            assert resL5.get() == 10;
+        }
+        {
+            List<Integer> li = Arrays.asList(1,2,3,4,5);
+            List<String> l = li.stream().map(i -> String.format("%d", i)).collect(Collectors.toList());
+            l.add("6");             // yes, you can add to a Collectors.toList()
+            assert l.size() == 6;
+        }
         p("passed testOptional\n");
     }
 
@@ -1916,7 +2019,7 @@ public class Java8Test extends TestCase {
     public void testHashMap() {
         Map<String,String> map = new HashMap<>();
         assert null == map.get("foo");
-        logger.info("testHashMap ran");
+        log("testHashMap ran", Level.INFO);
         p("pass testHashMap\n");
     }
     @Test
@@ -1965,9 +2068,51 @@ public class Java8Test extends TestCase {
                 .ifPresent(localo4 -> localo5.set(localo4.geto5()));
             assert localo5.get() == 20;
         }
+        {
+            List<Integer> li = new ArrayList<>();
+            LocalO4 l4;
+
+            l4 = new LocalO4(null);
+            Optional.ofNullable(l4.getI())
+                .map(i -> { return int2List(i); })
+                .filter(tmpli -> CollectionUtils.isNotEmpty(tmpli))
+                .ifPresent(tmpli -> li.addAll(tmpli));
+            assert li.size() == 0;
+
+            li.clear();
+            l4 = new LocalO4(1);
+            Optional.ofNullable(l4.getI())
+                .map(i -> { return int2List(i); })
+                .filter(tmpli -> CollectionUtils.isNotEmpty(tmpli))
+                .ifPresent(tmpli -> li.addAll(tmpli));
+            assert li.size() == 1;
+
+            li.clear();
+            l4 = new LocalO4(null);
+            List<Integer> li2 = new ArrayList<>(Arrays.asList(2,3));
+            l4.setLi(li2);
+            Optional.ofNullable(l4.getLi())
+                .map(tmpli -> { return intList2List(tmpli); })
+                .filter(tmpli -> CollectionUtils.isNotEmpty(tmpli))
+                .ifPresent(tmpli -> li.addAll(tmpli));
+            assert li.size() == 2;
+        }
+        p("passed testOptionalConsume\n");
+    }
+    List<String> string2List(String s) {
+        if(StringUtils.isBlank(s)) return null;
+        return new ArrayList<String>(Arrays.asList(s));
+    }
+    List<Integer> int2List(Integer i) {
+        if(i == null) return null;
+        return new ArrayList<Integer>(Arrays.asList(i));
+    }
+    List<Integer> intList2List(List<Integer> li) {
+        if(CollectionUtils.isEmpty(li)) return null;
+        return new ArrayList<Integer>(li);
     }
     @Test
-    public void testGenerateList() {
+    public void testList() {
         List<Integer> range;
         range = IntStream.range(0,10).boxed().collect(Collectors.toList());
         assert range.size() == 10;
@@ -1980,6 +2125,29 @@ public class Java8Test extends TestCase {
         assert range.size() == 11;
         for(int i = 0; i < range.size(); i++) {
             assert i == range.get(i);
+        }
+        boolean flag = false;
+        {
+            List<Integer> li = new ArrayList<>();
+            List<Integer> tmpli1 = null;
+            List<Integer> tmpli2 = Arrays.asList(1);
+            List<Integer> tmpli3 = Arrays.asList();
+
+            try {
+                li.addAll(tmpli1);
+                flag = false;
+            } catch(NullPointerException e) {
+                flag = true;
+            }
+            assert flag;    // list.addAll of null will get exception
+
+            li.add(null);   // list.add(null) is not exception!
+            assert li.size() == 1;
+
+            li.addAll(tmpli2);
+            assert li.size() == 2;
+            li.addAll(tmpli3);
+            assert li.size() == 2;  // list.addAll of empty list is ok
         }
     }
 }
@@ -2116,13 +2284,92 @@ class LocalO3 {
     }
 }
 
+
+@Data
+@Builder
+class Local3ABLombok {
+    private LocalO4 l4;
+    private Local3A l3a;
+    private Local3B l3b;
+}
+
+class Local3 {
+    private Local4A l4a;
+    public Local3(Local4A l4a) {
+        this.l4a = l4a;
+    }
+    Local4A getL4a() { return l4a; }
+}
+
+class Local3A extends Local3 {
+    private Local4A l4a;
+    public Local3A(Local4A o) {
+        super(o);
+        this.l4a = o;
+    }
+    Local4A getL4a() { return l4a; }
+}
+
+class Local3B extends Local3 {
+    private Local4A l4a;
+    public Local3B(Local4A o) {
+        super(o);
+        this.l4a = o;
+    }
+    Local4A getL4a() { return l4a; }
+}
+
+class Local4A {
+    private Integer i;
+    private LocalO5 l5;
+    public Local4A(Integer i, LocalO5 l5) {
+        this.i = i;
+        this.l5 = l5;
+    }
+    Integer getI() { return i; }
+    LocalO5 getL5() { return l5; }
+}
+
+
+@Data
+@Builder
+class Local3Lombok {
+    private Local4A l4a;
+}
+
+// get error: Local3Lombok cannot be applied to given types.
+// required: Local4A, found: no args, reason: actual and formal arg lists differ length
+/*
+@Data
+@Builder
+class Local3ALombok extends Local3Lombok {
+    private Local4A l4a;
+}
+
+@Data
+@Builder
+class Local3BLombok extends Local3Lombok {
+    private Local4A l4a;
+}
+*/
+
 class LocalO4 {
     private Integer o;
+    private List<Integer> li;
     public LocalO4(Integer o) {
         this.o = o;
     }
     public Integer geto5() {
         return o;
+    }
+    public Integer getI() {
+        return o;
+    }
+    public void setLi(List<Integer> li) {
+        this.li = li;
+    }
+    public List<Integer> getLi() {
+        return li;
     }
 }
 
