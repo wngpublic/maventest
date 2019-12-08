@@ -1,5 +1,6 @@
 package org.wayne.distributed;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import junit.framework.TestCase;
 import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
@@ -730,10 +731,13 @@ public class TestFutures extends TestCase {
      *   64 thread pool time: 4754 ms
      *  128 thread pool time: 2436 ms
      *  256 thread pool time: 1271 ms
+     *  512 thread pool time: 688 ms
+     * 1024 thread pool time: 453 ms
+     * 2048 thread pool time: 907 ms
      */
     @Test
     public void testCompletableFuture1() {
-        for(int numthreads = 4; numthreads < 512; numthreads = numthreads * 2) {
+        for(int numthreads = 4; numthreads < 1024; numthreads = numthreads * 2) {
             ExecutorService es = Executors.newFixedThreadPool(numthreads);
 
             long tbeg = System.currentTimeMillis();
@@ -830,7 +834,7 @@ public class TestFutures extends TestCase {
     }
     @Test
     public void testCompletableFuture2() {
-        for(int numthreads = 512; numthreads < 8092; numthreads = numthreads * 2) {
+        for(int numthreads = 2; numthreads < 1024; numthreads = numthreads * 2) {
             ExecutorService es = Executors.newFixedThreadPool(numthreads);
 
             long tbeg = System.currentTimeMillis();
@@ -895,9 +899,12 @@ public class TestFutures extends TestCase {
          *   64 thread pool time: 1627 ms
          *  128 thread pool time: 860 ms
          *  256 thread pool time: 432 ms
+         *  512 thread pool time: 254 ms
+         * 1024 thread pool time: 149 ms
+         * 2048 thread pool time: 158 ms
          *
          */
-        for(int numthreads = 1; numthreads < 512; numthreads = numthreads * 2) {
+        for(int numthreads = 1; numthreads < 1024; numthreads = numthreads * 2) {
             ExecutorService es = Executors.newFixedThreadPool(numthreads);
             ForkJoinPool fjp = new ForkJoinPool(numthreads); // for work stealing, but not in this tc
 
@@ -1260,6 +1267,952 @@ public class TestFutures extends TestCase {
         }
 
         p("pass testCompletableFutureExceptions\n");
+    }
+
+    private List<Integer> testCompletableFutures(int numFutures, int waitMillis) {
+        TestFuturesClassA tfca = new TestFuturesClassA();
+        List<Integer> listInt = IntStream
+            .range(0, numFutures).boxed()
+            .map(i -> tfca.supplyRandomNoExc(0,10000, waitMillis))
+            .collect(Collectors.toList());
+        return listInt;
+    }
+
+    private List<Integer> testCompletableFutures(int numFutures, int waitMillis, ExecutorService executorService) {
+        TestFuturesClassA tfca = new TestFuturesClassA();
+        List<Integer> listInt = IntStream
+            .range(0, numFutures).boxed()
+            .map(i -> tfca.supplyIntegerNoExc(waitMillis))
+            .collect(Collectors.toList());
+        return listInt;
+    }
+
+    @Test
+    public void testCompletableFutureFixedThreadPoolTimeoutExperiments() {
+        int numthreads  = 50;
+        int numthreads1 = 50;
+        int numthreads2 = 50;
+        int numthreads3 = 50;
+        int numthreadsfjp1 = 50;
+        int numloops = 3;
+        long tbeg = 0, tend = 0;
+        int tdif = 0;
+        int mintime;
+        int maxtime;
+        int waitMillis = 50;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+
+        p("Config: numthreads threadpools [:]: %d,%d,%d  availableProcessors: %d waitMillis:%d\n",
+            numthreads, numthreads1, numthreads2, availableProcessors, waitMillis);
+        List<String> errors = new ArrayList<>();
+
+        ExecutorService es = Executors.newFixedThreadPool(numthreads);
+
+        ThreadFactory threadFactory1 = new ThreadFactoryBuilder()
+            .setNameFormat("mytf1-%d")
+            .setDaemon(false)
+            .build();
+        ExecutorService executorService1 = Executors.newFixedThreadPool(numthreads1, threadFactory1);
+
+        ThreadFactory threadFactory2 = new ThreadFactoryBuilder()
+            .setNameFormat("mytf2-%d")
+            .setDaemon(false)
+            .build();
+        ExecutorService executorService2 = Executors.newFixedThreadPool(numthreads2, threadFactory2);
+
+        ThreadFactory threadFactory3 = new ThreadFactoryBuilder()
+            .setNameFormat("mytf3-%d")
+            .setDaemon(false)
+            .build();
+        ExecutorService executorService3 = Executors.newFixedThreadPool(numthreads3, threadFactory3);
+
+        ForkJoinPool forkJoinPool1 = new ForkJoinPool(numthreadsfjp1);
+
+        for(int loop = 0; loop < numloops; loop++) {
+
+            /*
+             * 1. create numthreads number of futures with fixed time and see when they complete.
+             * job complete should be equal to the sleep time.
+             *
+             * 2. create completablefuture with thenapplyasync with fixed time. the number of
+             * futures should be equal to twice the sleep time, regardless of number of futures.
+             * so have cases with numthreads/4, numthreads/2, numthreads
+             *
+             * 3. have 2 suppliers of completablefutures. have cases for where each of 2 suppliers
+             * submits X number of futures
+             * numthread/2  == completion time should be equal to sleep time
+             * numthread    == completion time should be 2x sleep time
+             *
+             */
+            p("------------------------ start loop %d\n", loop);
+            {
+                // test stream getter in loop to see how long it takes
+                int max = numthreads;
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                List<String> listString = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms normal stream\n", max, waitMillis);
+
+                assert listString.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                mintime = max * waitMillis;
+                maxtime = (int)(1.25 * mintime);
+                p("experiment 1.1.1: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 2; j *= 2) {
+                // test stream getter in parallel loop to see how long it takes
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                List<String> listString = IntStream
+                    .range(0, max).boxed()
+                    .parallel()
+                    .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                // default forkjoinpool is 1 less than number of cores
+                p("specs:            max:%d wait:%d ms parallel using default forkjoinpool\n", max, waitMillis);
+
+                assert listString.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(1.25 * mintime * max);
+                p("experiment 1.2.1: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 2; j *= 2) {
+                // test stream getter in parallel loop to see how long it takes
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                Future<List<String>> fls = forkJoinPool1.submit(() -> IntStream
+                    .range(0, max).boxed()
+                    .parallel()
+                    .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                    .collect(Collectors.toList()));
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms parallel using custom forkjoinpool\n", max, waitMillis);
+                p("experiment 1.3.0: %d ms completion\n", tdif);
+
+                List<String> listString = null;
+                try {
+                    listString = fls.get();
+                } catch (InterruptedException e) {
+                    errors.add(e.getMessage());
+                } catch (ExecutionException e) {
+                    errors.add(e.getMessage());
+                }
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 1.3.1: %d ms completion\n", tdif);
+
+                assert listString.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreadsfjp1)*waitMillis;
+                maxtime = (int)(1.25 * mintime * max);
+                p("experiment 1.3.2: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 2; j *= 2) {
+                // test stream getter in loop with threadpool to see how long it takes
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                Future<List<String>> fls = es.submit(() ->
+                    IntStream
+                        .range(0, max).boxed()
+                        .parallel()
+                        .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                        .collect(Collectors.toList())
+                );
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms executorservice future parallel\n", max, waitMillis);
+                p("experiment 2.1.1: %d ms completion\n", tdif);
+
+                List<String> listString = null;
+                try {
+                    listString = fls.get();
+                } catch (InterruptedException e) {
+                    errors.add(e.getMessage());
+                } catch (ExecutionException e) {
+                    errors.add(e.getMessage());
+                }
+                assert listString.size() == max;
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 2.1.2: %d ms completion\n", tdif);
+
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                // this is very off. is this really based on avail processors?
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
+                mintime = (max < availableProcessors) ? waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(1.25 * mintime * max);
+                p("experiment 2.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                // test stream getter in loop with threadpool to see how long it takes
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                Future<List<String>> fls = forkJoinPool1.submit(() ->
+                    IntStream
+                        .range(0, max).boxed()
+                        .parallel()
+                        .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                        .collect(Collectors.toList())
+                );
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms custom forkjoinpool future parallel\n", max, waitMillis);
+                p("experiment 2.2.1: %d ms completion\n", tdif);
+
+                List<String> listString = null;
+                try {
+                    listString = fls.get();
+                } catch (InterruptedException e) {
+                    errors.add(e.getMessage());
+                } catch (ExecutionException e) {
+                    errors.add(e.getMessage());
+                }
+                assert listString.size() == max;
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 2.2.2: %d ms completion\n", tdif);
+
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
+                maxtime = (int)(1.25 * mintime * max);
+                p("experiment 2.2.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                // test stream getter in loop with threadpool to see how long it takes
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+
+                tbeg = System.currentTimeMillis();
+
+                Future<List<String>> fls = es.submit(() ->
+                    IntStream
+                        .range(0, max)
+                        .boxed()
+                        .map(i -> tfca.supplyAppendStringNoExc("base", i, waitMillis))
+                        .collect(Collectors.toList())
+                );
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms executorservice future no parallel\n", max, waitMillis);
+                p("experiment 2.3.1: %d ms completion\n", tdif);
+
+                List<String> listString = null;
+                try {
+                    listString = fls.get();
+                } catch (InterruptedException e) {
+                    errors.add(e.getMessage());
+                } catch (ExecutionException e) {
+                    errors.add(e.getMessage());
+                }
+                assert listString.size() == max;
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 2.3.2: %d ms completion\n", tdif);
+
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().forEach(
+                    v -> { if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); } }
+                );
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
+                mintime = (max < availableProcessors) ?
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis * (availableProcessors-1) :
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis * (availableProcessors-1);
+                maxtime = (int)(1.25 * mintime * max);
+                p("experiment 2.3.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            {
+                int max = 6;
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture.supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); } ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture\n", max, waitMillis);
+                p("experiment 3.1.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 3.1.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/availableProcessors)*waitMillis;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 3.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif >= maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture.supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); } ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture default forkjoin\n", max, waitMillis);
+                p("experiment 3.2.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 3.2.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads) ? (int)(1.0*max/(availableProcessors-1))*waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 3.2.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif >= maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .parallel()
+                    .map(i -> CompletableFuture.supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); } ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture parallel\n", max, waitMillis);
+                p("experiment 3.3.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listCF.stream()
+                    .map(cf -> {
+                        try { return cf.get(); }
+                        catch (InterruptedException e) { errors.add(e.getMessage()); }
+                        catch (ExecutionException e) { errors.add(e.getMessage()); }
+                        return null;
+                    })
+                    .forEach(
+                        v -> {
+                            listString.add(v);
+                            if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                        }
+                    );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 3.3.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool??? availableProcessors -1 is default
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads) ? (int)(1.0*max/(availableProcessors-1))*waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 3.3.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif >= maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .parallel()
+                    .map(i -> CompletableFuture.supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); } ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture parallel\n", max, waitMillis);
+                p("experiment 3.4.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listCF.stream()
+                    .parallel()
+                    .map(cf -> {
+                        try { return cf.get(); }
+                        catch (InterruptedException e) { errors.add(e.getMessage()); }
+                        catch (ExecutionException e) { errors.add(e.getMessage()); }
+                        return null;
+                    })
+                    .forEach(
+                        v -> {
+                            listString.add(v);
+                            if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                        }
+                    );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 3.4.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads) ?
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis :
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 3.4.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif >= maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); }, executorService1 ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture\n", max, waitMillis);
+                p("experiment 4.1.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 4.1.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads1) ? waitMillis : (int)(1.0*max/numthreads1)*waitMillis;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 4.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                int numChained = 2;
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); }, executorService1 )
+                        .thenApplyAsync((s) -> { return tfca.supplyAppendStringNoExc(s, i, waitMillis); }, executorService1 )
+                    )
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms numChained:%d completablefuture thenApply once\n", max, waitMillis, numChained);
+                p("experiment 5.1.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 5.1.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads1) ? waitMillis * numChained: (int)(1.0*max/numthreads1)*waitMillis * numChained;
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 5.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                int numChained = 2;
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); }, executorService1 )
+                        .thenApplyAsync((s) -> { return tfca.supplyAppendStringNoExc(s, i, waitMillis); }, executorService2 )
+                    )
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms numChained:%d completablefuture thenApply with executorservice1,2\n", max, waitMillis, numChained);
+                p("experiment 6.1.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 6.1.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // 200 futures in 100 threadpool at 50ms = 2 * 50 = 100ms.
+                // then each pipelined stage to different threadpool is 50ms,
+                // so 1 additional stages = 1 * 50 = 50
+                //mintime = waitMillis * (factor + numChained-1);
+                mintime = (max < numthreads1) ? waitMillis * (numChained): (int)(1.0*max/numthreads)*waitMillis + waitMillis* (numChained-1);
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 6.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                int numChained = 3;
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                List<String> listString = new ArrayList<>();
+
+                tbeg = System.currentTimeMillis();
+
+                // pipelined different thread pools!
+                List<CompletableFuture<String>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .supplyAsync(() -> { return tfca.supplyAppendStringNoExc("base", i, waitMillis); }, executorService1 )
+                        .thenApplyAsync((s) -> { return tfca.supplyAppendStringNoExc(s, i, waitMillis); }, executorService2 )
+                        .thenApplyAsync((s) -> { return tfca.supplyAppendStringNoExc(s, i, waitMillis); }, executorService3 )
+                    )
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms numChained:%d completablefuture thenApply with executorservice1,2,3\n", max, waitMillis, numChained);
+                p("experiment 7.1.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$");
+                listCF.stream().map(cf -> {
+                    try { return cf.get(); }
+                    catch (InterruptedException e) { errors.add(e.getMessage()); }
+                    catch (ExecutionException e) { errors.add(e.getMessage()); }
+                    return null;
+                }).forEach(
+                    v -> {
+                        listString.add(v);
+                        if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }
+                    }
+                );
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 7.1.2: %d ms completion\n", tdif);
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // this is a pipeline.
+                // 600 futures in 100 threadpool at 50ms = 6 * 50 = 300ms.
+                // then each pipelined stage to different threadpool is 50ms,
+                // so 2 additional stages = 2 * 50 = 100
+                mintime = (max < numthreads1) ? waitMillis * (numChained): (int)(1.0*max/numthreads)*waitMillis + waitMillis* (numChained-1);
+                maxtime = (int)(1.25 * max * mintime);
+                p("experiment 7.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+        }
+
+        try {
+            es.shutdown();
+            executorService1.shutdown();
+            executorService2.shutdown();
+            executorService3.shutdown();
+            forkJoinPool1.shutdown();
+            executorService1.awaitTermination(30, TimeUnit.SECONDS);
+            executorService2.awaitTermination(30, TimeUnit.SECONDS);
+            executorService3.awaitTermination(30, TimeUnit.SECONDS);
+            forkJoinPool1.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            if(!es.isShutdown()) {
+                es.shutdownNow();
+            }
+            if(!executorService1.isShutdown()) {
+                executorService1.shutdownNow();
+            }
+            if(!executorService2.isShutdown()) {
+                executorService2.shutdownNow();
+            }
+            if(!executorService3.isShutdown()) {
+                executorService3.shutdownNow();
+            }
+            if(!forkJoinPool1.isShutdown()) {
+                forkJoinPool1.shutdownNow();
+            }
+        }
+        p("passed testCompletableFutureFixedThreadPoolTimeoutExperiments\n");
+    }
+
+    @Test
+    public void testThreadPoolConfigs() {
+        {
+            int numthreads1 = 100;
+            ThreadFactory threadFactory1 = new ThreadFactoryBuilder()
+                .setNameFormat("mytf1-%d")
+                .setDaemon(false)
+                .build();
+            ExecutorService executorService1 = Executors.newFixedThreadPool(numthreads1, threadFactory1);
+            try {
+                executorService1.shutdown();
+                executorService1.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                if(!executorService1.isShutdown()) {
+                    executorService1.shutdownNow();
+                }
+            }
+        }
+        {
+            int numthreads = 100;
+            ExecutorService es = Executors.newFixedThreadPool(numthreads);
+            try {
+                es.shutdown();
+                es.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                if(!es.isShutdown()) {
+                    es.shutdownNow();
+                }
+            }
+        }
+        {
+            int numthreadsfjp1 = 50;
+            ForkJoinPool fjp = new ForkJoinPool(numthreadsfjp1);
+            try {
+                fjp.shutdown();
+                fjp.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                if(!fjp.isShutdown()) {
+                    fjp.shutdownNow();
+                }
+            }
+
+        }
+        {
+            int corePoolSize = 100;
+            int maxPoolSize = 200;
+            long keepAliveTime = 60000;
+            BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>(50);
+            ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("mytf1-%d")
+                .setDaemon(false)
+                .build();
+            RejectedExecutionHandler rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
+
+            ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+                corePoolSize,
+                maxPoolSize,
+                keepAliveTime,
+                TimeUnit.MILLISECONDS,
+                workQueue,
+                threadFactory,
+                rejectedExecutionHandler);
+
+            try {
+                threadPoolExecutor.shutdown();
+                threadPoolExecutor.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                if(!threadPoolExecutor.isShutdown()) {
+                    threadPoolExecutor.shutdownNow();
+                }
+            }
+        }
     }
 
     private void startWorker() {
