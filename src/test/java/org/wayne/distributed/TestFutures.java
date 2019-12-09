@@ -2247,6 +2247,192 @@ public class TestFutures extends TestCase {
     }
 
     @Test
+    public void testCompletableFutureTimeouts() {
+        int numthreads  = 50;
+        int numloops = 3;
+        double upperBound = 3.0;
+        long tbeg = 0;
+        long tend = 0;
+        int tdif = 0;
+        int waitMillis = 50;
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        TestFuturesClassA tfca = new TestFuturesClassA();
+
+        BlockingQueue<Runnable> q = new ArrayBlockingQueue<>(10000);
+        ThreadPoolExecutor tpe = new ThreadPoolExecutor(
+            numthreads,
+            numthreads,
+            1000,       // this is used only when maxpoolsize > corepoolsize, to kill excess
+            TimeUnit.MILLISECONDS,
+            q);
+        tpe.prestartAllCoreThreads();
+
+        for(double j = 0.5; j <= 8; j *= 2) {
+            List<String> errors1 = new ArrayList<>();
+            int max = (int)(numthreads * j);
+            String base = String.format("base.%f",j);
+            Pattern pattern = Pattern.compile(String.format("^%s\\.\\d{1,3}$", base));
+
+            Collection<String> listString = new ConcurrentLinkedDeque<>();
+
+            tbeg = System.currentTimeMillis();
+
+            List<CompletableFuture<Void>> listCF = IntStream
+                .range(0, max)
+                .boxed()
+                .map(i -> CompletableFuture.runAsync(() -> {  tfca.consumeAppendStringNoExc(base, i, waitMillis, listString); }, tpe ))
+                .collect(Collectors.toList());
+
+            listCF.stream()
+                .parallel()
+                .forEach(cf -> {
+                    try { cf.get(); }
+                    catch (Exception e) { errors1.add(e.getMessage()); }
+                });
+
+            tend = System.currentTimeMillis();
+            tdif = (int)(tend - tbeg);
+
+            List<String> errorResults = listString.stream().filter(v -> !pattern.matcher(v).matches()).collect(Collectors.toList());
+            p("tdif: %5d ms max:%5d listResult:%5d errors:%5d errorResults:%d\n",
+                tdif, max, listString.size(), errors1.size(), errorResults.size());
+        }
+        p("\n");
+        for(double j = 0.5; j <= 8; j *= 2) {
+            List<String> errors1 = new ArrayList<>();
+            int max = (int)(numthreads * j);
+            String base = String.format("base.%f",j);
+            Pattern pattern = Pattern.compile(String.format("^%s\\.\\d{1,3}$", base));
+
+            Collection<String> listString = new ConcurrentLinkedDeque<>();
+
+            tbeg = System.currentTimeMillis();
+
+            List<CompletableFuture<Void>> listCF = IntStream
+                .range(0, max)
+                .boxed()
+                .parallel()
+                .map(i -> CompletableFuture.runAsync(() -> {  tfca.consumeAppendStringNoExc(base, i, waitMillis, listString); }, tpe ))
+                .collect(Collectors.toList());
+
+            listCF.stream()
+                .parallel()
+                .forEach(cf -> {
+                    try { cf.get(); }
+                    catch (Exception e) { errors1.add(e.getMessage()); }
+                });
+
+            tend = System.currentTimeMillis();
+            tdif = (int)(tend - tbeg);
+
+            List<String> errorResults = listString.stream().filter(v -> !pattern.matcher(v).matches()).collect(Collectors.toList());
+            p("tdif: %5d ms max:%5d listResult:%5d errors:%5d errorResults:%d\n",
+                tdif, max, listString.size(), errors1.size(), errorResults.size());
+        }
+        p("\n");
+        for(double j = 0.5; j <= 16; j *= 2) {
+            Collection<String> errors1 = new ConcurrentLinkedDeque<>();
+            int max = (int)(numthreads * j);
+            String base = String.format("base.%f",j);
+            Pattern pattern = Pattern.compile(String.format("^%s\\.\\d{1,3}$", base));
+
+            Collection<String> listString = new ConcurrentLinkedDeque<>();
+
+            tbeg = System.currentTimeMillis();
+
+            List<CompletableFuture<Void>> listCF = IntStream
+                .range(0, max)
+                .boxed()
+                .parallel()
+                .map(i -> CompletableFuture.runAsync(() -> {  tfca.consumeAppendStringNoExc(base, i, waitMillis, listString); }, tpe ))
+                .collect(Collectors.toList());
+
+            listCF.stream()
+                .parallel()
+                .forEach(cf -> {
+                    try { cf.get(waitMillis/2,TimeUnit.MILLISECONDS); }
+                    catch (Exception e) { errors1.add(e.toString()); }
+                });
+
+            tend = System.currentTimeMillis();
+            tdif = (int)(tend - tbeg);
+
+            List<String> errorResults = listString.stream().filter(v -> !pattern.matcher(v).matches()).collect(Collectors.toList());
+            p("tdif: %5d ms max:%5d listResult:%5d errors:%5d errorResults:%d\n",
+                tdif, max, listString.size(), errors1.size(), errorResults.size(), q.size());
+            p("activecount:%d taskcount:%d taskcountcompleted:%d queuesize:%d\n",
+                tpe.getActiveCount(), tpe.getTaskCount(), tpe.getCompletedTaskCount(), q.size());
+            // executorservice doesn't have these stats, so use threadpoolexecutor
+            tpe.purge();
+            while(tpe.getActiveCount() != 0) {
+                try {
+                    Thread.sleep(5);                // dont ever sleep in reality
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            assert tpe.getActiveCount() == 0;
+        }
+        p("\n");
+        for(double j = 0.5; j <= 16; j *= 2) {
+            Collection<String> errors1 = new ConcurrentLinkedDeque<>();
+            int max = (int)(numthreads * j);
+            String base = String.format("base.%f",j);
+            Pattern pattern = Pattern.compile(String.format("^%s\\.\\d{1,3}$", base));
+
+            Collection<String> listString = new ConcurrentLinkedDeque<>();
+
+            tbeg = System.currentTimeMillis();
+
+            List<CompletableFuture<Void>> listCF = IntStream
+                .range(0, max)
+                .boxed()
+                .parallel()
+                .map(i -> CompletableFuture.runAsync(() -> {  tfca.consumeAppendStringNoExc(base, i, waitMillis, listString); }, tpe ))
+                .collect(Collectors.toList());
+
+            listCF.stream()
+                .parallel()
+                .forEach(cf -> {
+                    try { cf.get(waitMillis/2,TimeUnit.MILLISECONDS); }
+                    catch (Exception e) {
+                        cf.cancel(true);
+                        errors1.add(e.toString());
+                    }
+                });
+
+            tend = System.currentTimeMillis();
+            tdif = (int)(tend - tbeg);
+
+            List<String> errorResults = listString.stream().filter(v -> !pattern.matcher(v).matches()).collect(Collectors.toList());
+            p("tdif: %5d ms max:%5d listResult:%5d errors:%5d errorResults:%d\n",
+                tdif, max, listString.size(), errors1.size(), errorResults.size(), q.size());
+            p("activecount:%d taskcount:%d taskcountcompleted:%d queuesize:%d\n",
+                tpe.getActiveCount(), tpe.getTaskCount(), tpe.getCompletedTaskCount(), q.size());
+            // executorservice doesn't have these stats, so use threadpoolexecutor
+            tpe.purge();
+            while(tpe.getActiveCount() != 0) {
+                try {
+                    Thread.sleep(5);                // dont ever sleep in reality
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            assert tpe.getActiveCount() == 0;
+        }
+
+        try {
+            tpe.shutdown();
+            tpe.awaitTermination(30, TimeUnit.SECONDS);
+        }
+        catch(InterruptedException e) { e.printStackTrace(); }
+        finally { if(!tpe.isShutdown()) tpe.shutdownNow(); }
+
+        p("\n");
+        p("passed testCompletableFutureTimeouts\n");
+    }
+
+    @Test
     public void testThreadPoolConfigs() {
         {
             int numthreads1 = 100;
@@ -2473,10 +2659,33 @@ class TestFuturesClassA {
         sleepNoExc(millis);
         return String.format("%s.%d",s,i);
     }
+    public void consumeAppendStringLoop(String s, int i, int numloops, long millisPerLoop, Collection<String> results) {
+        for(int j = 0; j < numloops; j++) {
+            sleepNoExc(millisPerLoop);
+            String v = String.format("%s.%d", s, i+j);
+            results.add(v);
+        }
+    }
     public void consumeAppendStringNoExc(String s, int i, long millis, Collection<String> results) {
         sleepNoExc(millis);
         results.add(String.format("%s.%d",s,i));
     }
+    public void consumeAppendString(
+        String s,
+        int i,
+        long millis,
+        Collection<String> results,
+        Collection<String> errors,
+        boolean genError)
+    {
+        sleepNoExc(millis, errors);
+        if(genError) {
+            int n=1,d=0;
+            int v = n/d;
+        }
+        results.add(String.format("%s.%d",s,i));
+    }
+
     public void consumeStringNoExc(String s, Collection<String> ls, long millis) {
         sleepNoExc(millis);
         ls.add(s);
@@ -2499,6 +2708,11 @@ class TestFuturesClassA {
         } catch(InterruptedException e) {
             e.printStackTrace();
         }
+    }
+    public void sleepNoExc(long millis, Collection<String> error) {
+        if(millis == 0) return;
+        try { Thread.sleep(millis); }
+        catch(InterruptedException e) { error.add(e.getMessage()); }
     }
 
 }
