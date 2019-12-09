@@ -1295,7 +1295,9 @@ public class TestFutures extends TestCase {
         int numthreads3 = 50;
         int numthreadsfjp1 = 50;
         int numloops = 3;
-        long tbeg = 0, tend = 0;
+        double upperBound = 3.0;
+        long tbeg = 0;
+        long tend = 0;
         int tdif = 0;
         int mintime;
         int maxtime;
@@ -1373,7 +1375,7 @@ public class TestFutures extends TestCase {
                 }
                 assert errors.size() == 0;
                 mintime = max * waitMillis;
-                maxtime = (int)(1.25 * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 1.1.1: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1410,8 +1412,8 @@ public class TestFutures extends TestCase {
                     }
                 }
                 assert errors.size() == 0;
-                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
-                maxtime = (int)(1.25 * mintime * max);
+                mintime = (int)(1.0*max/(availableProcessors))*waitMillis;
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 1.2.1: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1461,8 +1463,8 @@ public class TestFutures extends TestCase {
                     }
                 }
                 assert errors.size() == 0;
-                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreadsfjp1)*waitMillis;
-                maxtime = (int)(1.25 * mintime * max);
+                mintime = (max < numthreadsfjp1) ? waitMillis : (int)(1.0*max/numthreadsfjp1)*waitMillis;
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 1.3.2: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1515,9 +1517,10 @@ public class TestFutures extends TestCase {
                 }
                 assert errors.size() == 0;
                 // this is very off. is this really based on avail processors?
-                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
-                mintime = (max < availableProcessors) ? waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
-                maxtime = (int)(1.25 * mintime * max);
+                mintime = (max < availableProcessors) ?
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis :
+                    (int)(1.0*max/(availableProcessors-1))*waitMillis;
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 2.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1570,7 +1573,7 @@ public class TestFutures extends TestCase {
                 }
                 assert errors.size() == 0;
                 mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
-                maxtime = (int)(1.25 * mintime * max);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 2.2.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1622,11 +1625,10 @@ public class TestFutures extends TestCase {
                     }
                 }
                 assert errors.size() == 0;
-                mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/numthreads)*waitMillis;
                 mintime = (max < availableProcessors) ?
                     (int)(1.0*max/(availableProcessors-1))*waitMillis * (availableProcessors-1) :
                     (int)(1.0*max/(availableProcessors-1))*waitMillis * (availableProcessors-1);
-                maxtime = (int)(1.25 * mintime * max);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 2.3.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1681,7 +1683,7 @@ public class TestFutures extends TestCase {
                 // observed mintime is 318ms for 20 futures of 100ms each.
 
                 mintime = (max < numthreads) ? waitMillis : (int)(1.0*max/availableProcessors)*waitMillis;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 3.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif >= maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1736,7 +1738,7 @@ public class TestFutures extends TestCase {
                 // observed mintime is 318ms for 20 futures of 100ms each.
 
                 mintime = (max < numthreads) ? (int)(1.0*max/(availableProcessors-1))*waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 3.2.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif >= maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1794,7 +1796,7 @@ public class TestFutures extends TestCase {
                 // observed mintime is 318ms for 20 futures of 100ms each.
 
                 mintime = (max < numthreads) ? (int)(1.0*max/(availableProcessors-1))*waitMillis : (int)(1.0*max/(availableProcessors-1))*waitMillis;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 3.3.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif >= maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1855,7 +1857,7 @@ public class TestFutures extends TestCase {
                 mintime = (max < numthreads) ?
                     (int)(1.0*max/(availableProcessors-1))*waitMillis :
                     (int)(1.0*max/(availableProcessors-1))*waitMillis;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 3.4.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif >= maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -1911,12 +1913,123 @@ public class TestFutures extends TestCase {
                 // observed mintime is 318ms for 20 futures of 100ms each.
 
                 mintime = (max < numthreads1) ? waitMillis : (int)(1.0*max/numthreads1)*waitMillis;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 4.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
                 }
                 assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 0.5; j <= 4; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                Collection<String> listString = new ConcurrentLinkedDeque<>(); // using non concurrent list may cause unexpected drops
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<Void>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .runAsync(() -> {  tfca.consumeAppendStringNoExc("base", i, waitMillis, listString); }, executorService1 ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture void\n", max, waitMillis);
+                p("experiment 4.2.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                assert listCF.size() == max;
+                listCF.stream().forEach(cf -> {
+                    try { cf.get(); }
+                    catch (Exception e) { errors.add(e.getMessage()); }
+                });
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 4.2.2: %d ms completion\n", tdif);
+
+                assert listString.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().parallel().forEach(v -> {if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }});
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads1) ? waitMillis : (int)(1.0*max/numthreads1)*waitMillis;
+                maxtime = (int)(upperBound * mintime);
+                p("experiment 4.2.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                assert tdif >= mintime && tdif < maxtime;
+            }
+            p("\n");
+            for(double j = 1; j <= 1; j *= 2) {
+                int max = (int)(numthreads * j);
+                TestFuturesClassA tfca = new TestFuturesClassA();
+                Collection<String> listString = new ConcurrentLinkedDeque<>(); // using non concurrent list may cause unexpected drops
+
+                tbeg = System.currentTimeMillis();
+
+                List<CompletableFuture<Void>> listCF = IntStream
+                    .range(0, max).boxed()
+                    .map(i -> CompletableFuture
+                        .runAsync(() -> {  tfca.consumeAppendStringNoExc("base", i, waitMillis, listString); }, executorService1 ))
+                    .collect(Collectors.toList());
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("specs:            max:%d wait:%d ms completablefuture void\n", max, waitMillis);
+                p("experiment 4.3.1: %d ms completion\n", tdif);
+                mintime = max * waitMillis;
+                assert tdif < mintime;
+
+                // this does not work! you need to call get() and not return a get!
+                assert listCF.size() == max;
+                listCF.stream().map(cf -> cf.join());  // this does not work!
+
+                /*
+                listCF.stream().forEach(cf -> {
+                    try { cf.get(); }
+                    catch (Exception e) { errors.add(e.getMessage()); }
+                });
+                */
+
+                tend = System.currentTimeMillis();
+                tdif = (int)(tend - tbeg);
+                p("experiment 4.3.2: %d ms completion\n", tdif);
+
+                //assert listString.size() == max;
+                Pattern pattern = Pattern.compile("^base\\.\\d{1,3}$");
+                listString.stream().parallel().forEach(v -> {if(!pattern.matcher(v).matches()) { errors.add(String.format("error value %s", v)); }});
+
+                if(errors.size() != 0) {
+                    for(String error: errors) {
+                        p("Error: %s\n", error);
+                    }
+                }
+                assert errors.size() == 0;
+
+                // how many threads in forkjoinpool???
+                // observed mintime is 318ms for 20 futures of 100ms each.
+
+                mintime = (max < numthreads1) ? waitMillis : (int)(1.0*max/numthreads1)*waitMillis;
+                maxtime = (int)(upperBound * mintime);
+                p("experiment 4.3.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
+                if(tdif < mintime || tdif > maxtime) {
+                    p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
+                }
+                //assert tdif >= mintime && tdif < maxtime;
             }
             p("\n");
             for(double j = 0.5; j <= 4; j *= 2) {
@@ -1970,7 +2083,7 @@ public class TestFutures extends TestCase {
                 // observed mintime is 318ms for 20 futures of 100ms each.
 
                 mintime = (max < numthreads1) ? waitMillis * numChained: (int)(1.0*max/numthreads1)*waitMillis * numChained;
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 5.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -2030,7 +2143,7 @@ public class TestFutures extends TestCase {
                 // so 1 additional stages = 1 * 50 = 50
                 //mintime = waitMillis * (factor + numChained-1);
                 mintime = (max < numthreads1) ? waitMillis * (numChained): (int)(1.0*max/numthreads)*waitMillis + waitMillis* (numChained-1);
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 6.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -2092,7 +2205,7 @@ public class TestFutures extends TestCase {
                 // then each pipelined stage to different threadpool is 50ms,
                 // so 2 additional stages = 2 * 50 = 100
                 mintime = (max < numthreads1) ? waitMillis * (numChained): (int)(1.0*max/numthreads)*waitMillis + waitMillis* (numChained-1);
-                maxtime = (int)(1.25 * max * mintime);
+                maxtime = (int)(upperBound * mintime);
                 p("experiment 7.1.3: predicted min:%d max:%d actual: %d ms completion\n", mintime, maxtime, tdif);
                 if(tdif < mintime || tdif > maxtime) {
                     p("time %d out of bound. expected between %d and %d\n", tdif, mintime, maxtime);
@@ -2347,6 +2460,9 @@ class TestFuturesClassA {
         sleepNoExc(millis);
         return res;
     }
+    public void consumeIntNoExc(int min, int max, long millis, Collection<Integer> results) {
+        results.add(supplyRandomNoExc(min, max, millis));
+    }
     public String supplyAppendString(String s, int i, long millis) throws InterruptedException {
         if(millis != 0){
             Thread.sleep(millis);
@@ -2357,7 +2473,11 @@ class TestFuturesClassA {
         sleepNoExc(millis);
         return String.format("%s.%d",s,i);
     }
-    public void consumeStringNoExc(String s, List<String> ls, long millis) {
+    public void consumeAppendStringNoExc(String s, int i, long millis, Collection<String> results) {
+        sleepNoExc(millis);
+        results.add(String.format("%s.%d",s,i));
+    }
+    public void consumeStringNoExc(String s, Collection<String> ls, long millis) {
         sleepNoExc(millis);
         ls.add(s);
     }
