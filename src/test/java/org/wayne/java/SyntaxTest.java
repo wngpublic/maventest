@@ -36,6 +36,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import lombok.Builder;
+import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.checkerframework.checker.units.qual.min;
 import org.junit.Test;
@@ -46,6 +48,31 @@ import org.wayne.misc.Utils;
 import junit.framework.TestCase;
 
 import javax.annotation.Nonnull;
+
+class Pair1<T> {
+    public T h;
+    public T t;
+    public Pair1(T h, T t) {
+        this.h = h;
+        this.t = t;
+    }
+}
+
+class Pair2<K,V> {
+    public K h;
+    public V t;
+    public Pair2(K h, V t) {
+        this.h = h;
+        this.t = t;
+    }
+}
+
+@Builder
+@Data
+class Pair3<K> {
+    public K h;
+    public K t;
+}
 
 /**
  * This class just tries out various classes in java, and does some misc calculation tests.
