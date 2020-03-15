@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UnknownFormatConversionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -2149,6 +2151,313 @@ public class Java8Test extends TestCase {
             li.addAll(tmpli3);
             assert li.size() == 2;  // list.addAll of empty list is ok
         }
+    }
+    @Test
+    public void testAssertionCatch() {
+        boolean flag = false;
+        boolean kb1 = false;
+        int denominator = 0;
+        try {
+            flag = false;
+            assert kb1;
+            assert flag;
+        } catch(AssertionError e) {
+            flag = true;
+        }
+        try {
+            flag = false;
+            int v = 100/denominator;
+            assert kb1;
+            assert flag;
+        } catch(AssertionError e) {
+            flag = false;
+        } catch(Exception e) {
+            flag = true;
+        }
+        assert flag;
+        try {
+            Double d = Double.valueOf("something");
+            assert false;
+        } catch(Exception e) {
+            p(e.getLocalizedMessage());
+            flag = true;
+        }
+        p("pass testAssertionCatch\n");
+    }
+    @Test
+    public void testComparisonOrdering() {
+        boolean flag = false;
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(1),
+                new OrderingObjectInt(2),
+                new OrderingObjectInt(3),
+                new OrderingObjectInt(4),
+                new OrderingObjectInt(5)
+            );
+            Set<OrderingObjectInt> set = new TreeSet<>(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            set.addAll(list);
+            assert set.size() == 1;
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(1),
+                new OrderingObjectInt(2),
+                new OrderingObjectInt(3),
+                new OrderingObjectInt(4),
+                new OrderingObjectInt(5)
+            );
+            Set<OrderingObjectInt> set = new TreeSet<>();
+            try {
+                flag = false;
+                set.addAll(list);
+            } catch(Exception e) {
+                flag = true;
+            }
+            assert flag;
+            assert set.size() == 0;
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(1),
+                new OrderingObjectInt(2),
+                new OrderingObjectInt(3),
+                new OrderingObjectInt(4),
+                new OrderingObjectInt(5)
+            );
+            Set<OrderingObjectInt> set = new LinkedHashSet<>();
+            try {
+                flag = false;
+                set.addAll(list);
+            } catch(Exception e) {
+                flag = true;
+            }
+            assert !flag;
+            assert set.size() == 5;
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(104,3),
+                new OrderingObjectInt(102,2),
+                new OrderingObjectInt(101,1),
+                new OrderingObjectInt(105,4),
+                new OrderingObjectInt(106,2),
+                new OrderingObjectInt(103,3)
+            );
+            Set<OrderingObjectInt> set = new LinkedHashSet<>();
+            try {
+                flag = false;
+                set.addAll(list);
+            } catch(Exception e) {
+                flag = true;
+            }
+            assert !flag;
+            assert set.size() == 6;
+            List<Integer> exp = Arrays.asList(1,2,2,3,3,4);
+            final List<Integer> ori = Arrays.asList(3,2,1,4,2,3);
+            List<Integer> act = set.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            List<Integer> actList;
+            assert ori.equals(act);
+            assert !exp.equals(act);
+
+            // do not modify original list!
+            set = list.stream().sorted((o1,o2) -> o1.getOrdering() - o2.getOrdering()).collect(Collectors.toCollection(LinkedHashSet::new));
+            act = set.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            assert !ori.equals(act);
+            assert exp.equals(act);
+            actList = list.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            assert ori.equals(actList);
+
+            set.clear();
+            // but this messes up the original list!
+            list.sort(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            set.addAll(list);
+            act = set.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            assert !ori.equals(act);
+            assert exp.equals(act);
+            actList = list.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            assert !ori.equals(actList);
+
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(1),
+                new OrderingObjectInt(2),
+                new OrderingObjectInt(3),
+                new OrderingObjectInt(4),
+                new OrderingObjectInt(5)
+            );
+            Set<OrderingObjectInt> set = new TreeSet<>(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            for(OrderingObjectInt v: list){
+                set.add(v);
+            }
+            //list.stream().forEach(v -> set.add(v));
+            assert set.size() == 1;
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(101,1),
+                new OrderingObjectInt(102,2),
+                new OrderingObjectInt(103,3),
+                new OrderingObjectInt(104,4),
+                new OrderingObjectInt(105,5)
+            );
+            Set<OrderingObjectInt> set = new TreeSet<>(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            set.addAll(list);
+            assert set.size() == 5;
+        }
+        {
+            // what about the uninitialized value?
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(104,3),
+                new OrderingObjectInt(102,2),
+                new OrderingObjectInt(101,1),
+                new OrderingObjectInt(105,4),
+                new OrderingObjectInt(106,2),
+                new OrderingObjectInt(103,3)
+            );
+            List<Integer> listIntAct = list.stream().map(o -> o.getOrdering3()).collect(Collectors.toList());
+            List<Integer> listIntExp = Arrays.asList(0,0,0,0,0,0);
+            assert listIntAct.equals(listIntExp);
+            listIntExp = Arrays.asList(3,2,1,4,2,3);
+            listIntAct = list.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            assert listIntAct.equals(listIntExp);
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(104,3),
+                new OrderingObjectInt(102,2),
+                new OrderingObjectInt(101,1),
+                new OrderingObjectInt(105,4),
+                new OrderingObjectInt(106,2),
+                new OrderingObjectInt(103,3)
+            );
+            List<OrderingObjectInt> listAct = new ArrayList<>(list);
+            listAct.sort(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            Set<OrderingObjectInt> setAct = new LinkedHashSet<>();
+            setAct.addAll(listAct);
+            List<Integer> listIntAct = setAct.stream().map(o -> o.getOrdering()).collect(Collectors.toList());
+            List<Integer> listIntExp = Arrays.asList(1,2,2,3,3,4);
+            assert listIntAct.equals(listIntExp);
+        }
+        {
+            List<OrderingObjectInt> list = Arrays.asList(
+                new OrderingObjectInt(104,3,10),
+                new OrderingObjectInt(102,2,11),
+                new OrderingObjectInt(101,1,12),
+                new OrderingObjectInt(105,4,13),
+                new OrderingObjectInt(106,2,14),
+                new OrderingObjectInt(103,3,15)
+            );
+            List<Integer> li1 = list.stream().map(o -> o.getId()).collect(Collectors.toList());
+            list.sort(Comparator.comparingInt(OrderingObjectInt::getOrdering).thenComparingInt(OrderingObjectInt::getOrdering2));
+            List<Integer> la2 = list.stream().map(o -> o.getId()).collect(Collectors.toList());
+            List<Integer> le2 = Arrays.asList(101,102,106,104,103,105);
+            assert le2.equals(la2);
+        }
+        {
+            List<OrderingObjectInt> listOrig = Arrays.asList(
+                new OrderingObjectInt(104,3,15),
+                new OrderingObjectInt(102,2,14),
+                new OrderingObjectInt(101,1,13),
+                new OrderingObjectInt(105,4,12),
+                new OrderingObjectInt(106,2,11),
+                new OrderingObjectInt(103,3,10)
+            );
+            /*
+             *                      104 102 101 105 106 103
+             *                        3   2   1   4   2   3
+             *                       15  14  13  12  11  10
+             *
+             *                      101 102|106 104|103 105     sort by first index preference
+             *                      101 106 102 103 104 105     now sort by second index preference
+             *
+             */
+            List<OrderingObjectInt> list1 = new ArrayList<>(listOrig);
+            list1.sort(Comparator.comparingInt(OrderingObjectInt::getOrdering).thenComparingInt(OrderingObjectInt::getOrdering2));
+            List<Integer> la1 = list1.stream().map(o -> o.getId()).collect(Collectors.toList());
+            List<Integer> le1 = Arrays.asList(101,106,102,103,104,105);
+            assert le1.equals(la1);
+
+            List<OrderingObjectInt> list2 = new ArrayList<>(listOrig);
+            list2.sort(Comparator.comparingInt(OrderingObjectInt::getOrdering));
+            List<Integer> la2 = list2.stream().map(o -> o.getId()).collect(Collectors.toList());
+            List<Integer> le2 = Arrays.asList(101,102,106,104,103,105);
+            assert le2.equals(la2);
+
+        }
+    }
+
+}
+
+class OrderingObjectInt {
+    int id;
+    int ordering;
+    int ordering2;
+    int ordering3;
+    public OrderingObjectInt(int id) {
+        this(id, 0);
+    }
+    public OrderingObjectInt(int id, int ordering) {
+        this(id,ordering,0);
+    }
+    public OrderingObjectInt(int id, int ordering, int ordering2) {
+        this.id = id;
+        this.ordering = ordering;
+        this.ordering2 = ordering2;
+    }
+    public int getId() {
+        return id;
+    }
+    public int getOrdering() {
+        return ordering;
+    }
+    public void setOrdering(int ordering) {
+        this.ordering = ordering;
+    }
+    public int getOrdering2() {
+        return ordering2;
+    }
+    public void setOrdering2(int ordering) {
+        this.ordering2 = ordering;
+    }
+    public int getOrdering3() {
+        return ordering3;
+    }
+    public void setOrdering3(int ordering) {
+        this.ordering3 = ordering;
+    }
+}
+
+class OrderingObjectComparableInt implements Comparable {
+    int id;
+    int ordering;
+    public OrderingObjectComparableInt(int id) {
+        this(id, 0);
+    }
+    public OrderingObjectComparableInt(int id, int ordering) {
+        this.id = id;
+        this.ordering = ordering;
+    }
+    public int getId() {
+        return id;
+    }
+    public int getOrdering() {
+        return ordering;
+    }
+    public void setOrdering(int ordering) {
+        this.ordering = ordering;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        if(o instanceof OrderingObjectComparableInt) {
+            int v = ((OrderingObjectComparableInt) o).getOrdering();
+            if(v < getOrdering()) return -1;
+            else if(v == getOrdering()) return 0;
+            return 1;
+        }
+        return -1;
     }
 }
 

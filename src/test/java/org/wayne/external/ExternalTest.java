@@ -890,6 +890,87 @@ public class ExternalTest extends TestCase {
             assert vs == null;
 
         }
+        {
+            ByteBuffer byteBuffer = ByteBuffer.wrap("{\"k1\":\"v1\",\"k2\":\"\",\"k3\":{}}".getBytes(StandardCharsets.UTF_8));
+            JsonNode n = objectMapper.readTree(byteBuffer.array());
+            assert n.size() == 3;
+            JsonNode t = n.get("k");
+            assert t == null;
+            assert n.get("v") == null;
+            t = n.path("k");
+            assert t != null;
+            assert t.asText() == "";
+            t = n.get("k1");
+            assert t != null;
+            assert "v1".equals(t.asText());
+            t = n.get("k2");
+            assert t != null;
+            assert !t.isNull();
+            assert "".equals(t.asText());
+            assert t.size() == 0;
+            t = n.get("k3");
+            assert t != null;
+            assert t.size() == 0;
+            t = n.get("k4");
+            assert t == null;
+            t = n.path("k4");
+            assert t != null;
+            assert t.isMissingNode();
+        }
+        {
+            ByteBuffer byteBuffer = ByteBuffer.wrap("{\"key\":\"val\"}".getBytes(StandardCharsets.UTF_8));
+            JsonNode n = objectMapper.readTree(byteBuffer.array());
+            JsonNode t = n.get("k");
+            assert t == null;
+            assert n.get("v") == null;
+            t = n.path("k");
+            assert t != null;
+            assert t.asText() == "";
+            t = n.get("key");
+            assert t != null;
+            assert "val".equals(t.asText());
+            assert n.size() == 1;
+        }
+        {
+            ByteBuffer byteBuffer = ByteBuffer.wrap("{ }".getBytes(StandardCharsets.UTF_8));
+            JsonNode n = objectMapper.readTree(byteBuffer.array());
+            JsonNode t = n.get("k");
+            assert t == null;
+            assert n.get("v") == null;
+            t = n.path("k");
+            assert t != null;
+            assert t.asText() == "";
+            assert !n.isNull();
+            assert n.size() == 0;
+        }
+        {
+            String s = null;
+            boolean flag = false;
+            try {
+                JsonNode n = objectMapper.readTree(s); // this will fault
+                assert false;
+                assert n != null;
+                assert n.isNull();
+                assert n.size() == 0;
+            } catch(Exception e) {
+                flag = true;
+            }
+            assert flag;
+        }
+        {
+            String s = null;
+            boolean flag = false;
+            try {
+                JsonNode n = objectMapper.readTree(s); // this will fault
+                assert false;
+                assert n != null;
+                assert n.isNull();
+                assert n.size() == 0;
+            } catch(Exception e) {
+                flag = true;
+            }
+            assert flag;
+        }
         return;
     }
     @Test
@@ -1223,7 +1304,68 @@ public class ExternalTest extends TestCase {
             map.put(key,false);
         return false;
     }
+    boolean isInterleaved(int i, int j, int k, String s1, String s2, String s3, Map<String,Boolean> map, AtomicInteger ctr, boolean useDP) {
+        ctr.incrementAndGet();
+        if(i == s1.length() && j == s2.length() && k == s3.length()) return true;
+        if(k == s3.length()) return false;
+        String key = String.format("%d,%d,%d",i,j,k);
+        if(map.containsKey(key)) return map.get(key);
+        if(i < s1.length() && s1.charAt(i) == s3.charAt(k))
+            if(isInterleaved(i+1,j,k+1,s1,s2,s3,map,ctr,useDP)) return true;
+        if(j < s2.length() && s2.charAt(j) == s3.charAt(k))
+            if(isInterleaved(i,j+1,k+1,s1,s2,s3,map,ctr,useDP)) return true;
+        if(useDP)
+            map.put(key,false);
+        return false;
+    }
+    @Test
+    public void testInterleavedStringsNoError() {
+        String s1, s2, s3;
+        boolean res;
+        AtomicInteger ctr = new AtomicInteger(0);
+        String charset = "abc";
+        /*
+         * diff count:   4 for DP/NoDP: s1:cacb s2:ccab s3:ccacbacb
+         * diff count:   4 for DP/NoDP: s1:babc s2:bbac s3:bbabcabc
+         * diff count:   4 for DP/NoDP: s1:cbca s2:ccba s3:ccbcabca
+         * diff count:   3 for DP/NoDP: s1:bcb s2:bbca s3:bbcbacb
+         * diff count:   3 for DP/NoDP: s1:cac s2:ccab s3:ccacbac
+         * diff count:   3 for DP/NoDP: s1:cac s2:ccab s3:ccacbac
+         * diff count:   3 for DP/NoDP: s1:aca s2:aacb s3:aacabca
+         * diff count:   3 for DP/NoDP: s1:bcb s2:bbca s3:bbcbacb
+         * diff count:   3 for DP/NoDP: s1:aba s2:aabc s3:aabacba
+         * diff count:   3 for DP/NoDP: s1:aca s2:aacb s3:aacabca
+         * diff count:   3 for DP/NoDP: s1:cac s2:ccab s3:ccacbac
+         * diff count:   3 for DP/NoDP: s1:aca s2:aacb s3:aacabca
+         */
+        for(int i = 0; i < 100000; i++) {
+            s1 = getRandomString(charset, 3);
+            s2 = getRandomString(charset, 3);
+            s3 = getInterleavedString(s1,s2);
+            if(r.nextBoolean()){
+            }
+            Map<String,Boolean> map = new HashMap<>();
+            try {
+                //res = isInterleavedWithErrors(s1,s2,s3,1,ctr);
+                ctr.set(0);
+                res = isInterleaved(0,0,0,s1,s2,s3,map,ctr,false);
+                assert res;
+                int cnt_nodp = ctr.get();
 
+                ctr.set(0);
+                res = isInterleaved(0,0,0,s1,s2,s3,map,ctr,true);
+                assert res;
+                int cnt_dp = ctr.get();
+
+                int diff = cnt_nodp - cnt_dp;
+                if(diff > 1) {
+                    p("diff count: %3d for DP/NoDP: s1:%s s2:%s s3:%s\n",diff,s1,s2,s3);
+                }
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
     @Test
     public void testInterleavedStringsError() {
         String s1, s2, s3;
