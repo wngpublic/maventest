@@ -9,8 +9,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedOutputStream;
+import com.fasterxml.jackson.databind.MapperFeature;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyObject;
+import groovy.transform.CompileStatic;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -40,6 +42,9 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
+import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -92,6 +97,30 @@ import org.slf4j.LoggerFactory;
 
 import junit.framework.TestCase;
 //import sun.misc.CRC16;
+
+class JsonTestObject1 {
+    private int applebatCat;
+    private int batCatdog;
+    private int catDogEgg;
+    public void setApplebat(int v) {
+        this.applebatCat = v;
+    }
+    public int getApplebat() {
+        return applebatCat;
+    }
+    public void setBatCatdog(int v) {
+        this.batCatdog = v;
+    }
+    public int getBatCatdog() {
+        return this.batCatdog;
+    }
+    public void setCatDogEgg(int v) {
+        this.catDogEgg = v;
+    }
+    public int getCatDogEgg() {
+        return this.catDogEgg;
+    }
+}
 
 public class ExternalTest extends TestCase {
     Random random = new Random();
@@ -162,6 +191,16 @@ public class ExternalTest extends TestCase {
             s = this.getClass().getResource("/"); // target/test-classes
             assert "target/test-classes".equals(s.toString());
         }
+    }
+    public void testJsonFromClass() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        //objectMapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, false);
+        JsonTestObject1 o = new JsonTestObject1();
+        o.setApplebat(12);
+        o.setBatCatdog(23);
+        o.setCatDogEgg(34);
+        String s = objectMapper.writeValueAsString(o);
+        return;
     }
     public void testJsonNodeFromFile() throws Exception {
         // refer to collapseComments for layout
@@ -2162,13 +2201,13 @@ public class ExternalTest extends TestCase {
     }
     @Test
     public void testGroovyLoad() {
+        File file;
+        Class clazz;
+        GroovyObject groovyObject;
+        Object object;
+        boolean flag = false;
         {
-            File file;
-            Class clazz;
-            GroovyObject groovyObject;
-            Object object;
-
-            boolean flag = false;
+            flag = false;
             try (GroovyClassLoader groovyClassLoader = new GroovyClassLoader(this.getClass().getClassLoader())) {
                 file = new File("src/test/groovy/BasicTest.groovy");
                 clazz = groovyClassLoader.parseClass(file);
@@ -2192,6 +2231,68 @@ public class ExternalTest extends TestCase {
                 flag = true;
             }
             assert flag;
+        }
+        // test exception
+        {
+            flag = false;
+            try (GroovyClassLoader groovyClassLoader = new GroovyClassLoader(this.getClass().getClassLoader())) {
+                file = new File("src/test/groovy/TestRuntimeError.groovy");
+                clazz = groovyClassLoader.parseClass(file);
+                object = clazz.newInstance();
+                groovyObject = (GroovyObject)object;
+                List<String> ls1 = Arrays.asList("v1","v2","v3");
+                Map<Integer,String> m1 = new HashMap<>();
+                for(int i = 0; i < 5; i++) {
+                    String s = String.format("%s:%02d","vid",i);
+                    m1.put(i,s);
+                }
+                Object res = groovyObject.invokeMethod("testArgs", new Object [] {ls1,m1});
+
+                m1.put(10,"hi");
+                groovyObject.invokeMethod("testException", new Object [] {"test",10});
+                m1.put(12,"hi12");
+            } catch (Exception e) {
+                e.printStackTrace();
+                flag = true;
+            }
+            assert flag;
+        }
+        {
+            flag = false;
+            CompilerConfiguration compilerConfiguration = new CompilerConfiguration();
+            CompilationCustomizer compilationCustomizer = new ASTTransformationCustomizer(CompileStatic.class);
+            compilerConfiguration.addCompilationCustomizers(compilationCustomizer);
+            try (GroovyClassLoader groovyClassLoader = new GroovyClassLoader(this.getClass().getClassLoader(), compilerConfiguration)) {
+                file = new File("src/test/groovy/TestRuntimeError.groovy");
+                clazz = groovyClassLoader.parseClass(file);
+                object = clazz.newInstance();
+                groovyObject = (GroovyObject)object;
+                List<String> ls1 = Arrays.asList("v1","v2","v3");
+                Map<Integer,String> m1 = new HashMap<>();
+                for(int i = 0; i < 5; i++) {
+                    String s = String.format("%s:%02d","vid",i);
+                    m1.put(i,s);
+                }
+                Object res = groovyObject.invokeMethod("testArgs", new Object [] {ls1,m1});
+
+                m1.put(10,"hi");
+                groovyObject.invokeMethod("testException", new Object [] {"test",10});
+                m1.put(12,"hi12");
+            } catch(Exception e) {
+                e.printStackTrace();
+                flag = true;
+            }
+        }
+
+        {
+            CompilerConfiguration compilerConfiguration = new CompilerConfiguration();
+            CompilationCustomizer compilationCustomizer = new ASTTransformationCustomizer(CompileStatic.class);
+            compilerConfiguration.addCompilationCustomizers(compilationCustomizer);
+            try (GroovyClassLoader groovyClassLoader = new GroovyClassLoader(this.getClass().getClassLoader(), compilerConfiguration)) {
+
+            } catch(Exception e) {
+
+            }
         }
     }
 

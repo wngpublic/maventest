@@ -5,10 +5,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -38,6 +40,7 @@ import java.util.stream.IntStream;
 
 import lombok.Builder;
 import lombok.Data;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.checkerframework.checker.units.qual.min;
 import org.junit.Test;
@@ -48,6 +51,8 @@ import org.wayne.misc.Utils;
 import junit.framework.TestCase;
 
 import javax.annotation.Nonnull;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 class Pair1<T> {
     public T h;
@@ -1563,7 +1568,23 @@ public class SyntaxTest extends TestCase {
         assert clazz != null;
         assert enclosingClazz == null;
     }
-
+    @Test
+    public void testDataTypes() {
+        assert Boolean.TRUE.equals(true);
+        assert !Boolean.TRUE.equals(1);
+        assert !Boolean.TRUE.equals("true");
+        assert !Boolean.TRUE.equals("false");
+        assert "true".equals("TrUE".toLowerCase());
+        assert "true".equals("true".toLowerCase());
+        assert !"true".equals("false".toLowerCase());
+        assert Boolean.TRUE.equals(Boolean.valueOf("true"));
+        assert Boolean.TRUE.equals(Boolean.valueOf("TrUE"));
+        assert Boolean.TRUE.equals(Boolean.valueOf("TRUE"));
+        assert !Boolean.TRUE.equals(Boolean.valueOf("TrUe "));
+        assert !Boolean.TRUE.equals(Boolean.valueOf("False"));
+        assert !Boolean.TRUE.equals(Boolean.valueOf("cat"));
+        assert !Boolean.TRUE.equals(Boolean.valueOf(null));
+    }
     @Test
     public void testString() {
         String s1;
@@ -1679,6 +1700,9 @@ public class SyntaxTest extends TestCase {
         }
         assert expected;
 
+        s = null;
+        assert !"status".equals(s);
+
         p("\n----------passed testString-------\n");
     }
     @Test
@@ -1688,4 +1712,87 @@ public class SyntaxTest extends TestCase {
         i = null;
         assert i == null; // must initialize, else get error!
     }
+    @Test
+    public void testGenericsArrays() {
+        List<Integer> li0 = Arrays.asList(1,2,3); // immutabl
+        List<Integer> li1 = new ArrayList<>(li0);
+        List li2 = Arrays.asList(1,2,3);
+        List<Integer> li3 = new ArrayList<>(li1);
+        List<Integer> li4 = li3.stream().collect(Collectors.toList());
+        List<Integer> li5 = new ArrayList<>();
+        li5.addAll(li4);
+
+        assert li1.get(1) == 2;
+        assert li3.get(1) == 2;
+        li1.set(1,20);
+        assert li1.get(1) == 20;
+        assert li3.get(1) == 2;
+        li1.set(1,2);
+
+        Integer [] ai1 = li1.toArray(new Integer[0]);
+        Integer [] ai2 = li1.toArray(new Integer[li1.size()]);
+        //int [] ai2 = li1.toArray(new int[0]); // does not work
+        Integer [] ai3 = ((List<Integer>)li2).toArray(new Integer[li2.size()]);
+        Integer [] ai4 = ((List<Integer>)li2).toArray(new Integer[0]);
+        Integer [] ai5 = new Integer[ai2.length];
+        System.arraycopy(ai2,0,ai5,0,ai2.length);
+        Integer [] ai6 = Arrays.copyOf(ai2, ai2.length);
+        Integer [] ai7 = ai2.clone();
+        Integer [] ai8 = Arrays.stream(ai2).toArray(Integer []::new);
+
+        assert ai3.length == 3;
+        assert ai4.length == 3;
+        assert ai7.length == 3;
+        assert ai2[1] == 2;
+        assert ai7[1] == 2;
+        ai2[1] = 20;
+        ai7[1] = 30;
+        assert ai2[1] == 20;
+        assert ai7[1] == 30;
+        ai2[1] = 2;
+        ai7[1] = 2;
+
+        int a1[] = {1,2,3};
+        int a2[] = {};
+        int a3[] = new int [] {4,5,6};
+        int a4[] = new int [3];
+        //int a4[] = (int [])Arrays.asList(1,2,3).toArray();
+
+        assert a3[1] == 5;
+        List<int []> la1 = new ArrayList<>();
+        la1.add(a1);
+        la1.add(a2);
+        la1.add(a3);
+
+        List<Integer []> la2 = new ArrayList<>();
+        la2.add(ai1);
+        la2.add(ai2);
+        la2.add(ai3);
+
+        List<Integer []> la3 = new ArrayList<>();
+    }
+    @Test
+    public void testURL() {
+        String s = "domain.com";
+        boolean flag = false;
+        try {
+            URL url = new URL(s);
+            String host = url.getHost();
+            assert "domain.com".equals(s);
+        } catch(Exception e) {
+            flag = true;
+        }
+        assert flag;
+    }
+
+    @Test
+    public void testAES() throws NoSuchAlgorithmException {
+        KeyGenerator kg = KeyGenerator.getInstance("AES");
+        kg.init(128);
+        for(int i = 0; i < 10; i++) {
+            SecretKey sk = kg.generateKey();
+            System.out.printf(String.valueOf(Hex.encodeHex(sk.getEncoded())) + "\n");
+        }
+    }
+
 }
