@@ -505,7 +505,7 @@ public class MyLambda implements MyBasic {
         //p("streams2\n"); testStream2();
         //p("fibonacciSupplier\n"); testSupplier1();
         //p("streams3\n"); testStream3();
-        //p("testFunctionalComposition1\n"); testFunctionalComposition1();
+        p("testFunctionalComposition1\n"); testFunctionalComposition1();
         //p("testStreamFlatMap\n"); testStreamFlatMap();
         testLambda2();
     }

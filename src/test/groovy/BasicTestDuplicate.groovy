@@ -1,5 +1,5 @@
 
-class BasicTest {
+class BasicTestDuplicate {
     def hello() {
         System.out.printf("Hello world\n");
     }

@@ -4,7 +4,7 @@ import org.wayne.misc.Utils;
 
 import org.wayne.main.MyBasic;
 
-import javax.annotation.Nonnull;
+//import javax.annotation.Nonnull;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
@@ -360,8 +360,9 @@ public class MySyntax implements MyBasic {
             e.printStackTrace();
         }
     }
-
-    private void nonNullInput(@Nonnull String v) {
+    
+    //private void nonNullInput(@Nonnull String v) {
+    private void nonNullInput(String v) {
         if(v == null) {
             p("not supposed to be here\n");
         } else {

@@ -10,13 +10,16 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedOutputStream;
 import com.fasterxml.jackson.databind.MapperFeature;
+import com.google.common.hash.Funnels;
+import com.google.common.hash.Funnel;
+import com.google.common.hash.BloomFilter;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyObject;
 import groovy.transform.CompileStatic;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-
+import java.math.BigInteger;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.net.MalformedURLException;
@@ -94,7 +97,6 @@ import java.util.zip.GZIPOutputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import junit.framework.TestCase;
 //import sun.misc.CRC16;
 
@@ -2314,7 +2316,7 @@ public class ExternalTest extends TestCase {
                 .setConnectionRequestTimeout(2000)
                 .setConnectTimeout(2000)
                 .setSocketTimeout(2000).build();
-            HttpGet httpGet = new HttpGet("https:/finance.yahoo.com");
+            HttpGet httpGet = new HttpGet("https://finance.yahoo.com");
             httpGet.setConfig(requestConfigPerRequest);
             httpGet.addHeader(HttpHeaders.ACCEPT, "application/json");
             CloseableHttpResponse httpResponse = httpClient.execute(httpGet);
@@ -2604,6 +2606,35 @@ public class ExternalTest extends TestCase {
             assert 10 == lci.getI();
         }
         p("pass testLombok\n");
+    }
+    @Test
+    public void testGuavaBloomFilter() {
+        long sz = 10000L;
+        double fpp = 0.001;
+        Funnel<CharSequence>funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
+        BloomFilter<String> bloomFilter = BloomFilter.create(funnel, sz, fpp);
+        List<String> keys = new ArrayList<>();
+        for(int i = 0; i < sz; i++) {
+            keys.add(String.format("key_%06d",i));
+        }
+        for(String key: keys) {
+            bloomFilter.put(key);
+        }
+        for(String key: keys) {
+            assert bloomFilter.mightContain(key) == true;
+        }
+        int numFalsePositives = 0;
+        long max = sz*10;
+        for(long i = sz; i < max; i++) {
+            if(bloomFilter.mightContain(String.format("key_%06d",i))){
+                numFalsePositives++;
+                //System.out.println(String.format("key_%06d",i));
+                //assert bloomFilter.mightContain(String.format("key_%06d",i)) == false;
+            }
+        }
+        double pctFalsePositives = ((double)numFalsePositives/max);
+        p("ratio false positives %f\n", pctFalsePositives);
+        
     }
     @Test
     public void tieredSorts() {
@@ -3821,6 +3852,7 @@ class LombokClassC {
 @Data
 @Builder
 @AllArgsConstructor
+@NoArgsConstructor
 class LombokClassD {
     private String s;
     protected Integer i;

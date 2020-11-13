@@ -1,6 +1,6 @@
 package org.wayne.external;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+//import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -1686,7 +1686,7 @@ class SerializedPOJO {
     }
 }
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+//@JsonIgnoreProperties(ignoreUnknown = true)
 class SerializedPOJOIgnorable {
     List<String> k104_0;
     List<String> k104_1;
@@ -1735,7 +1735,7 @@ class SerializedPOJO1 {
     }
 }
 
-@JsonIgnoreProperties(ignoreUnknown = true)
+//@JsonIgnoreProperties(ignoreUnknown = true)
 class SerializedPOJO1Ignorable {
     List<String> list0;
     List<String> list1;

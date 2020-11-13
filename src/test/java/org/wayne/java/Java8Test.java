@@ -18,6 +18,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -35,6 +36,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.junit.platform.commons.util.StringUtils;
 import org.mockito.cglib.core.Local;
+import org.wayne.java.MyLambda;
+import org.wayne.java.BasicBuilderTestingObject;
 
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -445,7 +448,58 @@ public class Java8Test extends TestCase {
         }
         p("passed testFunctionalLambda\n");
     }
+    @Test
+    public void testFunctionalLambda2() {
+        List<TestObj> listTestObj = new ArrayList<>();
+        int szMax = 10;
+        for(int i = 0; i < szMax; i++) {
+            TestObj testObj = new TestObj(String.format("name_%02d",i),i);
+            listTestObj.add(testObj);
+        }
+        Map<Integer,String> map;
+        map = listTestObj.stream().collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+        assert map.size() == szMax;
+    
+        TestObj testObj = listTestObj.get(1);
+        listTestObj.set(1,null);
+        boolean flag = false;
 
+        try {
+            map = listTestObj.stream().collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+        }
+        catch(NullPointerException e) { flag = true; }
+        finally { assert flag == true; }
+
+        try {
+            flag = false;
+            map = listTestObj.stream().filter(obj -> Objects.nonNull(obj)).collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+            assert map.size() == (szMax-1);
+        }
+        catch(NullPointerException e) { flag = true; }
+        finally { assert flag == false; }
+    
+        TestObj testObj1 = new TestObj(null,testObj.getV());
+        listTestObj.set(1,testObj1);
+    
+        try {
+            flag = false;
+            map = listTestObj.stream().collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+        }
+        catch(NullPointerException e) { flag = true; }
+        finally { assert flag == true; }
+        
+        try {
+            flag = false;
+            map = listTestObj.stream().filter(obj -> Objects.nonNull(obj.getName())).collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+            assert map.size() == (szMax-1);
+        }
+        catch(NullPointerException e) { flag = true; }
+        finally { assert flag == false; }
+
+        listTestObj.set(1,testObj);
+        map = listTestObj.stream().collect(Collectors.toMap(TestObj::getId,TestObj::getName));
+        assert map.size() == szMax;
+    }
     @Test
     public void testOptional() {
         {
@@ -1744,6 +1798,97 @@ public class Java8Test extends TestCase {
         assert avg == 5.5;
     }
 
+    public boolean equals(List<?> l1, List<?> l2) {
+        if(CollectionUtils.isEmpty(l1) && CollectionUtils.isEmpty(l2)) {
+            return true;
+        }
+        if(l1.size() != l2.size()) {
+            return false;
+        }
+        int size = l1.size();
+        for(int i = 0; i < size; i++) {
+            if(l1.get(i) != l2.get(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    void printMSMSLI(Map<String, Map<String, List<Integer>>> mapSMSLI) {
+        for(Map.Entry<String,Map<String,List<Integer>>> kv1: mapSMSLI.entrySet()) {
+            String k1 = kv1.getKey();
+            for(Map.Entry<String,List<Integer>> kv2: kv1.getValue().entrySet()) {
+                String k2 = kv2.getKey();
+                for(Integer i: kv2.getValue()){
+                    System.out.printf("%3s   %3s   %3d\n",k1,k2,i);
+                }
+                System.out.printf("------\n");
+            }
+            System.out.printf("-----------\n");
+        }
+        System.out.printf("END\n");
+    }
+    @Test
+    public void testMapStream() {
+        int i = 0;
+        int max = 2;
+
+        Map<String, List<Integer>> mapSLI1 = new HashMap<>();
+
+        List<Integer> l1a = new ArrayList<>();
+        List<Integer> l1b = new ArrayList<>();
+
+        for(int j = 0; j < max; j++) l1a.add(i*max+j);
+        i++;
+        for(int j = 0; j < max; j++) l1b.add(i*max+j);
+        i++;
+
+        mapSLI1.put("k1a",l1a);
+        mapSLI1.put("k1b",l1b);
+    
+        Map<String, List<Integer>> mapSLI2 = new HashMap<>();
+
+        List<Integer> l2a = new ArrayList<>();
+        List<Integer> l2b = new ArrayList<>();
+    
+        for(int j = 0; j < max; j++) l2a.add(i*max+j);
+        i++;
+        for(int j = 0; j < max; j++) l2b.add(i*max+j);
+        i++;
+    
+        mapSLI2.put("k2a",l2a);
+        mapSLI2.put("k2b",l2b);
+    
+        Map<String, Map<String, List<Integer>>> mapSMSLI = new HashMap<>();
+        mapSMSLI.put("k1", mapSLI1);
+        mapSMSLI.put("k2", mapSLI2);
+    
+        printMSMSLI(mapSMSLI);
+
+        Predicate<String> predicate = str -> str.charAt(2) == 'b';
+        mapSMSLI.forEach((k,v)->{
+            v = v
+                    .entrySet()
+                    .stream()
+                    .filter(e -> predicate.test(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+            mapSMSLI.put(k,v);
+        });
+    
+        printMSMSLI(mapSMSLI);
+    
+        mapSMSLI.forEach((k,v)->{
+            v = v
+                    .entrySet()
+                    .stream()
+                    .filter(e -> predicate.test(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
+            mapSMSLI.put(k,v);
+        });
+    
+        printMSMSLI(mapSMSLI);
+
+        return;
+    }
     @Test
     public void testStream() {
         Set<Integer> si0 = new HashSet<>();
@@ -1947,6 +2092,14 @@ public class Java8Test extends TestCase {
             expected = true;
         }
         assert expected;
+
+        s = ".12.34.";
+        String substring = s.substring(0,0);
+        assert "".equals(substring);
+        int idx = s.indexOf("abc");
+        assert idx == -1;
+        idx = s.indexOf("34");
+        assert idx == 4;
 
         p("\npass testString\n");
     }
@@ -2388,6 +2541,33 @@ public class Java8Test extends TestCase {
         }
     }
 
+}
+
+class TestObj {
+    Integer id;
+    Integer v;
+    String name;
+    static int ID = 0;
+    public TestObj(String name, Integer v) {
+        this.id = TestObj.ID++;
+        this.v = v;
+        this.name = name;
+    }
+    public Integer getId() {
+        return this.id;
+    }
+    public void setName(String name) {
+        this.name = name;
+    }
+    public String getName() {
+        return this.name;
+    }
+    public void setV(Integer v) {
+        this.v = v;
+    }
+    public Integer getV() {
+        return this.v;
+    }
 }
 
 class OrderingObjectInt {

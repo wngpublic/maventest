@@ -128,3 +128,12 @@ jcmd -> attach -> jvm attach <-> dcmd <-> monitored jvm <-> jmx client
 
 
 
+if using intellij, here are following settings:
+- maventest     // not main and test!
+    - out excluded
+    - test
+        - java      mark as test root
+    - src.main.java
+        - org       mark as source
+  pom.xml
+    java configuration version must match whatever jdk present

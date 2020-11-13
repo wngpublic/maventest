@@ -38,11 +38,13 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+//import com.sun.org.apache.xml.internal.utils.WrappedRuntimeException;
+//import org.apache.xml.utils.WrappedRuntimeException.WrappedRuntimeException;
 import lombok.Builder;
 import lombok.Data;
-import org.apache.commons.codec.binary.Hex;
+//import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
-import org.checkerframework.checker.units.qual.min;
+//import org.checkerframework.checker.units.qual.min;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +52,7 @@ import org.wayne.misc.Utils;
 
 import junit.framework.TestCase;
 
-import javax.annotation.Nonnull;
+//import javax.annotation.Nonnull;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 
@@ -1390,10 +1392,11 @@ public class SyntaxTest extends TestCase {
                     try {
                         throw new RuntimeException("runtime exception");
                     } catch(Exception e) {
-                        throw new WrappedRuntimeException(e);
+                        //throw new WrappedRuntimeException(e);
                     }
-                } catch(WrappedRuntimeException e) {
-                    throw (IOException)e.throwable();
+                //} catch(WrappedRuntimeException e) {
+                } catch(RuntimeException e) {
+                    //throw (IOException)e.throwable();
                 }
             } catch(Exception e) {
                 if      (e instanceof IOException) result = 1;
@@ -1408,10 +1411,11 @@ public class SyntaxTest extends TestCase {
                     try {
                         throw new IOException("runtime exception");
                     } catch(Exception e) {
-                        throw new WrappedRuntimeException(e);
+                        //throw new WrappedRuntimeException(e);
                     }
-                } catch(WrappedRuntimeException e) {
-                    throw (IOException)e.throwable();
+                } catch(RuntimeException e) {
+                //} catch(WrappedRuntimeException e) {
+                    //throw (IOException)e.throwable();
                 }
             } catch(Exception e) {
                 if      (e instanceof IOException) result = 1;
@@ -1791,7 +1795,7 @@ public class SyntaxTest extends TestCase {
         kg.init(128);
         for(int i = 0; i < 10; i++) {
             SecretKey sk = kg.generateKey();
-            System.out.printf(String.valueOf(Hex.encodeHex(sk.getEncoded())) + "\n");
+            //System.out.printf(String.valueOf(Hex.encodeHex(sk.getEncoded())) + "\n");
         }
     }
 

@@ -4,7 +4,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.nio.pool.BasicNIOConnPool;
+//import org.apache.http.impl.nio.pool.BasicNIOConnPool;
 import org.wayne.main.MyBasic;
 
 import java.io.BufferedReader;
